@@ -2,11 +2,13 @@
 
 import argparse
 import pandas as pd
+import json
+import sys
 
 #Input
 #1. PATRIC (Gene Matrix || Gene List) in csv, tsv, xls, or  xlsx formats
 #2. (optional) PATRIC (Metadata template) in csv, tsv, xls, or xlsx formats
-#3. trasformation metadata in json with the following:
+#3. trasformation metadata in json string with the following:
 
 #{source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
 #data_type: "Transcriptomics || Proteomics || Phenomics", 
@@ -28,8 +30,25 @@ import pandas as pd
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--foo', help='foo help')
+    parser.add_argument('-x', required=True, help='comparisons file')
+    parser.add_argument('--xformat', required=True, help='format of comparisons', choices=['csv', 'tsv', 'xls', 'xlsx'])
+    parser.add_argument('--xsetup', required=True, help='setup for comparisons file', choices=['gene_matrix', 'gene_list'])
+    parser.add_argument('-m', help='PATRIC metadata template')
+    parser.add_argument('--mformat', help='format of PATRIC metadata template', choices=['csv', 'tsv', 'xls', 'xlsx'])
+    parser.add_argument('-u', required=True, help='json string from user input')
     args = parser.parse_args()
+    if len(sys.argv) ==1:
+        parser.print_help()
+        sys.exit(2)
 
+    if (args.m!=None or args.mformat!=None) and (args.m==None or args.mformat==None):
+        sys.stderr.write("Expression transformation: (file,format) pair must be given\n")
+        sys.exit(2)
+
+    comparisons_table=None
+    if args.x != None and args.xformat!=None:
+        comparisons_table=None
+    
+     
 if __name__ == "__main__":
     main()
