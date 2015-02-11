@@ -4,6 +4,7 @@ import argparse
 import pandas as pd
 import json
 import sys
+import numpy as np
 
 #Input
 #1. PATRIC (Gene Matrix || Gene List) in csv, tsv, xls, or  xlsx formats
@@ -28,6 +29,9 @@ import sys
 #sample.json
 #{"sample":[{"sig_log_ratio":2675,"expmean":"1.258","sampleUserGivenId":"LB_stat_AerobicM9_stat_aerobic","expname":"LB_stat_AerobicM9_stat_aerobic","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","genes":4429,"sig_z_score":139,"expstddev":"1.483"}]}
 
+
+#convert gene list format to gene matrix
+#there is definitely a more efficient conversion than this...
 def gene_list_to_matrix(cur_table):
     comparisons=set(cur_table['Comparison ID'])
     genes=set(cur_table['Gene ID'])
@@ -41,6 +45,35 @@ def gene_list_to_matrix(cur_table):
         ratio=row[-1][ratio_pos]
         result[comp][gene_id]=ratio
     return result
+
+
+def place_ids(query_results,cur_table,form_data):
+    for d in query_results.docs:
+        source_id=None
+        target_id=None
+        if form_data.source_id_type in d:
+            source_id=d[form_data.source_id_type]
+        if 'feature_id' in d:
+            target_id=d['feature_id']
+        if source_id and target_id:
+            cur_table["Map ID"][source_id]=target_id
+
+def make_map_query(id_list, form_data):
+    current_query='?='+form_data.source_id_type+":("+" OR ".join(id_list)+")"
+    current_query=current_query+"&fl=feature_id,+"form_data.source_id_type+"&http_content-type=application/solrquery+x-www-form-urlencoded"
+    return current_query
+
+def chunker(seq, size):
+    return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
+
+def map_gene_ids(cur_table, form_data, server_setup):
+    solr = pysolr.Solr(server_setup.data_api, timeout=60)
+    cur_table["Map ID"]=np.nan
+    chunk_size=2000
+    for i in chunker(cur_table['Gene ID'], chunk_size):
+        cur_query=make_map_query(i, form_data)
+        mapping_results=solr.search(cur_query, wt='json', rows=chunk_size)
+        place_ids(mapping_results, cur_table, form_data)
         
 
 def main():
@@ -53,6 +86,7 @@ def main():
     parser.add_argument('-m', help='PATRIC metadata template')
     parser.add_argument('--mformat', help='format of PATRIC metadata template', choices=['csv', 'tsv', 'xls', 'xlsx'])
     parser.add_argument('-u', required=True, help='json string from user input')
+    parser.add_argument('-s', required=True, help='server setup JSON file')
     args = parser.parse_args()
     if len(sys.argv) ==1:
         parser.print_help()
@@ -83,6 +117,10 @@ def main():
             sys.stderr.write("Missing appropriate column names in "+args.xsetup+"\n")
             sys.exit(2)
 
+    #convert gene list to matrix.
+    if args.xsetup == 'gene_list':
+        comparisons_table=gene_list_to_matrix(comparisons_table)
+
     #parse user provided data
     form_data=None
     try:
@@ -90,6 +128,9 @@ def main():
     except:
         sys.stderr.write("Failed to parse user provided form data "+args.u+"\n")
         raise
+   
+    #map gene ids
+    map_gene_ids(comparisons_table, form_data, server_setup) 
 
     
 
