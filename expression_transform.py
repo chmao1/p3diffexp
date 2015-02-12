@@ -5,6 +5,8 @@ import pandas as pd
 import json
 import sys
 import numpy as np
+import requests
+import os
 
 #Input
 #1. PATRIC (Gene Matrix || Gene List) in csv, tsv, xls, or  xlsx formats
@@ -30,12 +32,29 @@ import numpy as np
 #{"sample":[{"sig_log_ratio":2675,"expmean":"1.258","sampleUserGivenId":"LB_stat_AerobicM9_stat_aerobic","expname":"LB_stat_AerobicM9_stat_aerobic","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","genes":4429,"sig_z_score":139,"expstddev":"1.483"}]}
 
 
+def pretty_print_POST(req):
+    """
+    At this point it is completely built and ready
+    to be fired; it is "prepared".
+
+    However pay attention at the formatting used in
+    this function because it is programmed to be pretty
+    printed and may differ from the actual request.
+    """
+    print('{}\n{}\n{}\n\n{}'.format(
+        '-----------START-----------',
+        req.method + ' ' + req.url,
+        '\n'.join('{}: {}'.format(k, v) for k, v in req.headers.items()),
+        req.body,
+    ))
+
 #convert gene list format to gene matrix
 #there is definitely a more efficient conversion than this...
 def gene_list_to_matrix(cur_table):
     comparisons=set(cur_table['Comparison ID'])
     genes=set(cur_table['Gene ID'])
     result=pd.DataFrame(index=sorted(list(genes)), columns=sorted(list(comparisons)))
+    result['Gene ID']=result.index
     gene_pos=cur_table.columns.get_loc('Gene ID')
     comparison_pos=cur_table.columns.get_loc('Comparison ID')
     ratio_pos=cur_table.columns.get_loc('Log Ratio')
@@ -46,33 +65,73 @@ def gene_list_to_matrix(cur_table):
         result[comp][gene_id]=ratio
     return result
 
+def list_to_mapping_table(cur_table):
+    genes=set(cur_table['Gene ID'])
+    result=pd.DataFrame(index=sorted(list(genes)))
+    result['Gene ID']=result.index
+    return result
+
+
+#mapping.json
+#{"mapping":{"unmapped_list":[{"exp_locus_tag":"VBISalEnt101322_pg001"}],"unmapped_ids":99,"mapped_list":[{"na_feature_id":"36731006","exp_locus_tag":"VBISalEnt101322_0001"}],"mapped_ids":4886}}
+
+#creates mapping.json for results
+def create_mapping_file(output_path, mapping_table, form_data):
+    mapping_dict={"mapping":{"unmapped_list":[],"unmapped_ids":0,"mapped_list":[],"mapped_ids":0}}
+    mapping_dict['mapping']['unmapped_list']=mapping_table[mapping_table.isnull().any(axis=1)][['Gene ID']].rename(columns={'Gene ID': 'exp_locus_tag'}).to_dict(outtype='records')
+    mapping_dict['mapping']['mapped_list']=mapping_table[mapping_table.notnull().all(axis=1)].rename(columns={'Gene ID': 'exp_locus_tag', 'Map ID': "feature_id"}).to_dict(outtype='records')
+    mapping_dict['mapping']['unmapped_ids']=len(mapping_dict['mapping']['unmapped_list'])
+    mapping_dict['mapping']['mapped_ids']=len(mapping_dict['mapping']['mapped_list'])
+    output_file=os.path.join(output_path, 'mapping.json')
+    out_handle=open(output_file, 'w')
+    json.dump(mapping_dict, out_handle)
+    out_handle.close()
+
+    #mapped_list=[{form_data["source_id_type"]: i["Map ID"], "exp_locus_tag":i['Gene ID']} for i in mapping_table[mapping_table.notnull().any(axis=1)]]
+    #mapped_list=[{form_data["source_id_type"]: i["Map ID"], "exp_locus_tag":i["Gene ID"]} for i in mapping_table.query('Gene ID != @np.nan')]
+
+#convert gene matrix format to gene list
+#there is definitely a more efficient conversion than this...
+def gene_matrix_to_list(cur_table):
+    result=pd.melt(cur_table, id_vars=['Gene ID'], var_name='Comparison ID', value_name='Log Ratio')
+    return result
 
 def place_ids(query_results,cur_table,form_data):
-    for d in query_results.docs:
+    for d in query_results.json()['response']['docs']:
         source_id=None
         target_id=None
-        if form_data.source_id_type in d:
-            source_id=d[form_data.source_id_type]
+        if form_data["source_id_type"] in d:
+            source_id=d[form_data["source_id_type"]]
         if 'feature_id' in d:
             target_id=d['feature_id']
         if source_id and target_id:
             cur_table["Map ID"][source_id]=target_id
 
-def make_map_query(id_list, form_data):
-    current_query='?='+form_data.source_id_type+":("+" OR ".join(id_list)+")"
-    current_query=current_query+"&fl=feature_id,+"form_data.source_id_type+"&http_content-type=application/solrquery+x-www-form-urlencoded"
-    return current_query
+def make_map_query(id_list, form_data, server_setup, chunk_size):
+    current_query={'q':form_data["source_id_type"]+":("+" OR ".join(id_list)+")"}
+    current_query["fl"]="feature_id,"+form_data["source_id_type"]
+    current_query["rows"]=str(chunk_size)
+    current_query["wt"]="json"
+    #headers = {'Content-Type': 'application/solrquery+x-www-form-urlencoded'}
+    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
+    req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
+    prepared = req.prepare()
+    #pretty_print_POST(prepared)
+    s = requests.Session()
+    response=s.send(prepared)
+    if not response.ok:
+        sys.stderr.write("Mapping API not responding. Please try again later.\n")
+        #sys.exit(2)
+    return response
 
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
 def map_gene_ids(cur_table, form_data, server_setup):
-    solr = pysolr.Solr(server_setup.data_api, timeout=60)
     cur_table["Map ID"]=np.nan
-    chunk_size=2000
+    chunk_size=10000
     for i in chunker(cur_table['Gene ID'], chunk_size):
-        cur_query=make_map_query(i, form_data)
-        mapping_results=solr.search(cur_query, wt='json', rows=chunk_size)
+        mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
         place_ids(mapping_results, cur_table, form_data)
         
 
@@ -117,9 +176,9 @@ def main():
             sys.stderr.write("Missing appropriate column names in "+args.xsetup+"\n")
             sys.exit(2)
 
-    #convert gene list to matrix.
-    if args.xsetup == 'gene_list':
-        comparisons_table=gene_list_to_matrix(comparisons_table)
+    #convert gene matrix to list
+    if args.xsetup == 'gene_matrix':
+        comparisons_table=gene_matrix_to_list(comparisons_table)
 
     #parse user provided data
     form_data=None
@@ -128,9 +187,16 @@ def main():
     except:
         sys.stderr.write("Failed to parse user provided form data "+args.u+"\n")
         raise
-   
+    try:
+        server_setup=json.loads(args.s)
+    except:
+        sys.stderr.write("Failed to parse server data "+args.s+"\n")
+        raise
+    mapping_table=list_to_mapping_table(comparisons_table)
     #map gene ids
-    map_gene_ids(comparisons_table, form_data, server_setup) 
+    map_gene_ids(mapping_table, form_data, server_setup)
+    comparisons_table=comparisons_table.merge(mapping_table, how='left', on="Gene ID")
+    create_mapping_file('./', mapping_table, form_data)
 
     
 
