@@ -15,9 +15,9 @@ from scipy import stats
 #1. trasformation metadata in json with the following:
 
 """
-{x_file:"comparisons file",
-x_format:"csv || tsv || xls ||  xlsx",
-x_setup:"gene_matrix || gene_list",
+{xfile:"comparisons file",
+xformat:"csv || tsv || xls ||  xlsx",
+xsetup:"gene_matrix || gene_list",
 source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
 data_type: "Transcriptomics || Proteomics || Phenomics", 
 experiment_title: "User input", 
@@ -159,9 +159,6 @@ def create_comparison_files(output_path, comparisons_table, form_data, experimen
     return (sample_dict, expression_dict)
     
     
-    
-        
-    
 
 #mapping.json
 #{"mapping":{"unmapped_list":[{"exp_locus_tag":"VBISalEnt101322_pg001"}],"unmapped_ids":99,"mapped_list":[{"na_feature_id":"36731006","exp_locus_tag":"VBISalEnt101322_0001"}],"mapped_ids":4886}}
@@ -232,52 +229,22 @@ def main():
     list_columns=['Gene ID', 'Comparison ID', 'Log Ratio']
     sig_z=2
     sig_log=1
+    valid_formats=set(['csv', 'tsv', 'xls', 'xlsx'])
+    valid_setups=set(['gene_matrix','gene_list'])
+    
+    req_info=['xfile','xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism name'] 
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('-x', required=True, help='comparisons file')
-    parser.add_argument('--xformat', required=True, help='format of comparisons', choices=['csv', 'tsv', 'xls', 'xlsx'])
-    parser.add_argument('--xsetup', required=True, help='setup for comparisons file', choices=['gene_matrix', 'gene_list'])
-    parser.add_argument('-m', help='PATRIC metadata template')
-    parser.add_argument('--mformat', help='format of PATRIC metadata template', choices=['csv', 'tsv', 'xls', 'xlsx'])
-    parser.add_argument('-u', required=True, help='json string from user input')
-    parser.add_argument('-s', required=True, help='server setup JSON file')
+    userinfo = parser.add_mutually_exclusive_group(required=True)
+    userinfo.add_argument('--ufile', required=True, help='json file from user input')
+    userinfo.add_argument('--ustring', required=True, help='json string from user input')
+    serverinfo = parser.add_mutually_exclusive_group(required=True)
+    serverinfo.add_argument('--sfile', required=True, help='server setup JSON file')
+    serverinfo.add_argument('--sstring', required=True, help='server setup JSON string')
     args = parser.parse_args()
     if len(sys.argv) ==1:
         parser.print_help()
         sys.exit(2)
-
-    if (args.m!=None or args.mformat!=None) and (args.m==None or args.mformat==None):
-        sys.stderr.write("Expression transformation: (file,format) pair must be given\n")
-        sys.exit(2)
-
-    #read comparisons file
-    comparisons_table=None
-    if args.xformat == 'csv':
-        comparisons_table=pd.read_csv(args.x, header=0)
-    if args.xformat == 'tsv':
-        comparisons_table=pd.read_table(args.x, header=0)
-    if args.xformat == 'xls' or args.xformat == 'xlsx':
-        comparisons_table=pd.io.excel.read_excel(args.x, 0, index_col=None)
-
-    check_columns=None
-    if args.xsetup == 'gene_matrix':
-        check_columns=matrix_columns
-    else:
-        check_columns=list_columns
-    columns_ok = True
-    for i in check_columns:
-        columns_ok=columns_ok and i in comparisons_table.columns
-    if not columns_ok:
-            sys.stderr.write("Missing appropriate column names in "+args.xsetup+"\n")
-            sys.exit(2)
-
-    #convert gene matrix to list
-    if args.xsetup == 'gene_matrix':
-        comparisons_table=gene_matrix_to_list(comparisons_table)
-
-    #ensure no ridiculous log ratios
-    comparisons_table.ix[comparisons_table["Log Ratio"] > 1000000, 'Log Ratio']=1000000
-    comparisons_table.ix[comparisons_table["Log Ratio"] < -1000000, 'Log Ratio']=-1000000
-    comparisons_table=comparisons_table.dropna()
 
     #parse user form data
     form_data=None
@@ -292,6 +259,46 @@ def main():
     except:
         sys.stderr.write("Failed to parse server data "+args.s+"\n")
         raise
+
+    #make sure all required info present
+    missing=[x not in form_data for x in req_info]
+    if (any(missing)):
+        sys.stderr.write("Missing required user input data: "+" ".join([req_info[i] for i in range(len(missing)) if missing[i]])+"\n")
+        sys.exit(2)
+    if ('metadata_template' in form_data or 'metadata_format' in form_data) and ('metadata_format' not in form_data or 'metadata_template' not in form_data):
+        sys.stderr.write("Expression transformation: (file,format) pair must be given for metadata template\n")
+        #sys.exit(2)
+
+    #read comparisons file
+    comparisons_table=None
+    if form_data.xformat == 'csv':
+        comparisons_table=pd.read_csv(args.x, header=0)
+    if form_data.xformat == 'tsv':
+        comparisons_table=pd.read_table(args.x, header=0)
+    if form_data.xformat == 'xls' or form_data.xformat == 'xlsx':
+        comparisons_table=pd.io.excel.read_excel(args.x, 0, index_col=None)
+
+    check_columns=None
+    if form_data.xsetup == 'gene_matrix':
+        check_columns=matrix_columns
+    else:
+        check_columns=list_columns
+    columns_ok = True
+    for i in check_columns:
+        columns_ok=columns_ok and i in comparisons_table.columns
+    if not columns_ok:
+            sys.stderr.write("Missing appropriate column names in "+form_data.xfile+"\n")
+            sys.exit(2)
+
+    #convert gene matrix to list
+    if form_data.xsetup == 'gene_matrix':
+        comparisons_table=gene_matrix_to_list(comparisons_table)
+
+    #ensure no ridiculous log ratios
+    comparisons_table.ix[comparisons_table["Log Ratio"] > 1000000, 'Log Ratio']=1000000
+    comparisons_table.ix[comparisons_table["Log Ratio"] < -1000000, 'Log Ratio']=-1000000
+    comparisons_table=comparisons_table.dropna()
+
     #map gene ids
     mapping_table=list_to_mapping_table(comparisons_table)
     map_gene_ids(mapping_table, form_data, server_setup)
