@@ -7,6 +7,9 @@ import sys
 import numpy as np
 import requests
 import os
+import uuid
+from scipy import stats
+
 
 #Input
 #1. PATRIC (Gene Matrix || Gene List) in csv, tsv, xls, or  xlsx formats
@@ -71,6 +74,78 @@ def list_to_mapping_table(cur_table):
     result['Gene ID']=result.index
     return result
 
+#{source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
+#data_type: "Transcriptomics || Proteomics || Phenomics", 
+#experiment_title: "User input", experiment_description: "User input",
+#organism name: "user input", pubmed_id: "user_input"}
+
+#Sample Output
+#experiment.json
+#{"origFileName":"filename","geneMapped":4886,"samples":8,"geneTotal":4985,"cdate":"2013-01-28 13:40:47","desc":"user input","organism":"some org","owner":"user name","title":"user input","pmid":"user input","expid":"whatever","collectionType":"ExpressionExperiment","genesMissed":99,"mdate":"2013-01-28 13:40:47"}
+def create_experiment_file(output_path, mapping_dict, form_data, experiment_id):
+    experiment_dict={"geneMapped":0,"samples":0,"geneTotal":0,"desc":None,"organism":None,"title":None,"pmid":None,"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":None}
+    experiment_dict["geneMapped"]=mapping_dict["mapped_ids"]
+
+
+#expression.json
+#{"expression":[{"log_ratio":"0.912","na_feature_id":"36731006","exp_locus_tag":"VBISalEnt101322_0001","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","z_score":"-0.23331085637221843"}]
+ 
+#sample.json
+#{"sample":[{"sig_log_ratio":2675,"expmean":"1.258","sampleUserGivenId":"LB_stat_AerobicM9_stat_aerobic","expname":"LB_stat_AerobicM9_stat_aerobic","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","genes":4429,"sig_z_score":139,"expstddev":"1.483"}]}
+
+def create_comparison_files(output_path, comparisons_table, form_data, experiment_id, sig_z, sig_log, form_data):
+    #create dicts for json
+    sample_dict={'sample':[]}
+    expression_dict={'expression':[]}
+    #create stats table for sample.json
+    grouped=comparisons_table.groupby(["Comparison ID"])
+    sample_stats=grouped.agg([np.mean, np.std])
+    sample_stats["genes"]=grouped.count()["Gene ID"]
+    sample_stats["pid"]=[str(experiment_id)+"S"+str(i) for i in range(0,len(sample_stats))]
+    sample_stats["sampleUserGivenId"]=sample_stats.index
+    sample_stats["expname"]=sample_stats.index
+    #get zscore and significance columns
+    comparisons_table["z_score"]=grouped.transform(stats.zscore)
+    comparisons_table["sig_z"]=comparisons_table["z_score"] >= sig_z
+    comparisons_table["sig_log"]=comparisons_table["Log Ratio"] >= sig_log
+    #store counts in stats
+    sample_stats["sig_z_score"]=comparisons_table.groupby(["Comparison ID","sig_z"]).count()['sig_z'].unstack()[True]
+    sample_stats["sig_log_ratio"]=comparisons_table.groupby(["Comparison ID","sig_log"]).count()['sig_log'].unstack()[True]
+    #set pid's for expression.json
+    comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", left_on="Comparison ID", right_on="sampleUserGivenId")
+    #pull in metadata spreadsheet if provided
+    if 'metadata_template' in form_data and 'metadata_format' in form_data and form_data['metadata_template']:
+        meta_table=None
+        try:
+            if form_data['metadata_format'] == 'xls' or form_data['metadata_format'] == 'xlsx':
+                meta_table=pd.io.excel.read_excel(form_data['metadata_template'], 0, index_col=None)
+            else if form_data['metadata_format'] == 'csv':        
+                meta_table=pd.read_csv(form_data['metadata_template'], header=0)
+            else:
+                meta_table=pd.read_table(form_data['metadata_template'], header=0)
+            meta_table=meta_table.rename({'Comparison':'sampleUserGivenId', 'Title':'expname', 'PubMed':'pubmed', 'Accession':'accession', 'Organism':'organism', 'Strain':'strain', 'Gene Modification':'mutant', 'Experiment Condition':'condition', 'Time Point':'timepoint'})
+            sample_stats=sample_stats.merge(meta_table, how="left", on="sampleUserGivenId")
+        except:
+            sys.stderr.write("failed to use user provide metadata template\n")
+            pass
+    #populate json dicts
+    sample_dict['sample']=sample_stats.to_dict(outtype='records')
+    cols = [col for col in comparison_table.columns if col not in ['sig_z', 'sig_log']]
+    expression_dict=['expression']=comparisons_table[cols].rename({'Gene ID': 'exp_locus_tag', 'Map ID': "feature_id","Log Ratio":'log_ratio'}).to_dict(outtype='records')
+    output_file=os.path.join(output_path, 'sample.json')
+    out_handle=open(output_file, 'w')
+    json.dump(sample_dict, out_handle)
+    out_handle.close()
+    output_file=os.path.join(output_path, 'expression.json')
+    out_handle=open(output_file, 'w')
+    json.dump(expression_dict, out_handle)
+    out_handle.close()
+    return (sample_dict, expression_dict)
+    
+    
+    
+        
+    
 
 #mapping.json
 #{"mapping":{"unmapped_list":[{"exp_locus_tag":"VBISalEnt101322_pg001"}],"unmapped_ids":99,"mapped_list":[{"na_feature_id":"36731006","exp_locus_tag":"VBISalEnt101322_0001"}],"mapped_ids":4886}}
@@ -86,6 +161,7 @@ def create_mapping_file(output_path, mapping_table, form_data):
     out_handle=open(output_file, 'w')
     json.dump(mapping_dict, out_handle)
     out_handle.close()
+    return mapping_dict
 
     #mapped_list=[{form_data["source_id_type"]: i["Map ID"], "exp_locus_tag":i['Gene ID']} for i in mapping_table[mapping_table.notnull().any(axis=1)]]
     #mapped_list=[{form_data["source_id_type"]: i["Map ID"], "exp_locus_tag":i["Gene ID"]} for i in mapping_table.query('Gene ID != @np.nan')]
@@ -138,6 +214,8 @@ def map_gene_ids(cur_table, form_data, server_setup):
 def main():
     matrix_columns=['Gene ID']
     list_columns=['Gene ID', 'Comparison ID', 'Log Ratio']
+    sig_z=2
+    sig_log=1
     parser = argparse.ArgumentParser()
     parser.add_argument('-x', required=True, help='comparisons file')
     parser.add_argument('--xformat', required=True, help='format of comparisons', choices=['csv', 'tsv', 'xls', 'xlsx'])
@@ -162,7 +240,7 @@ def main():
     if args.xformat == 'tsv':
         comparisons_table=pd.read_table(args.x, header=0)
     if args.xformat == 'xls' or args.xformat == 'xlsx':
-        comparisons_table=pd.io.excel.read_excel(args.x, 0, index_col=None, na_values=['NA'])
+        comparisons_table=pd.io.excel.read_excel(args.x, 0, index_col=None)
 
     check_columns=None
     if args.xsetup == 'gene_matrix':
@@ -180,24 +258,33 @@ def main():
     if args.xsetup == 'gene_matrix':
         comparisons_table=gene_matrix_to_list(comparisons_table)
 
-    #parse user provided data
+    #ensure no ridiculous log ratios
+    comparisons_table.ix[comparisons_table["Log Ratio"] > 1000000, 'Log Ratio']=1000000
+    comparisons_table.ix[comparisons_table["Log Ratio"] < -1000000, 'Log Ratio']=-1000000
+    comparisons_table=comparisons_table.dropna()
+
+    #parse user form data
     form_data=None
     try:
         form_data=json.loads(args.u)
     except:
         sys.stderr.write("Failed to parse user provided form data "+args.u+"\n")
         raise
+    #parse setup data
     try:
         server_setup=json.loads(args.s)
     except:
         sys.stderr.write("Failed to parse server data "+args.s+"\n")
         raise
-    mapping_table=list_to_mapping_table(comparisons_table)
     #map gene ids
+    mapping_table=list_to_mapping_table(comparisons_table)
     map_gene_ids(mapping_table, form_data, server_setup)
     comparisons_table=comparisons_table.merge(mapping_table, how='left', on="Gene ID")
-    create_mapping_file('./', mapping_table, form_data)
 
+    #create json files to represent experiment
+    experiment_id=uuid.uuid1()
+    mapping_dict=create_mapping_file('./', mapping_table, form_data)
+    create_comparison_files('./', comparisons_table, form_data, experiment_id, sig_z, sig_log, metadata_template=None)
     
 
     
