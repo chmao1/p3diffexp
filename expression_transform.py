@@ -12,14 +12,25 @@ from scipy import stats
 
 
 #Input
-#1. PATRIC (Gene Matrix || Gene List) in csv, tsv, xls, or  xlsx formats
-#2. (optional) PATRIC (Metadata template) in csv, tsv, xls, or xlsx formats
-#3. trasformation metadata in json string with the following:
+#1. trasformation metadata in json with the following:
 
-#{source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
-#data_type: "Transcriptomics || Proteomics || Phenomics", 
-#experiment_title: "User input", experiment_description: "User input",
-#organism name: "user input", pubmed_id: "user_input"}
+"""
+{x_file:"comparisons file",
+x_format:"csv || tsv || xls ||  xlsx",
+x_setup:"gene_matrix || gene_list",
+source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
+data_type: "Transcriptomics || Proteomics || Phenomics", 
+experiment_title: "User input", 
+experiment_description: "User input",
+organism name: "user input", 
+pubmed_id: "user_input",
+"metadata_template":"file",
+"metadata_format":"csv || tsv || xls ||  xlsx"}
+"""
+#2. server info for the data api
+"""
+{"data_api":"url"}
+"""
 
 #Sample Output
 #experiment.json
@@ -37,11 +48,6 @@ from scipy import stats
 
 def pretty_print_POST(req):
     """
-    At this point it is completely built and ready
-    to be fired; it is "prepared".
-
-    However pay attention at the formatting used in
-    this function because it is programmed to be pretty
     printed and may differ from the actual request.
     """
     print('{}\n{}\n{}\n\n{}'.format(
@@ -93,13 +99,14 @@ def create_experiment_file(output_path, mapping_dict, form_data, experiment_id):
 #sample.json
 #{"sample":[{"sig_log_ratio":2675,"expmean":"1.258","sampleUserGivenId":"LB_stat_AerobicM9_stat_aerobic","expname":"LB_stat_AerobicM9_stat_aerobic","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","genes":4429,"sig_z_score":139,"expstddev":"1.483"}]}
 
-def create_comparison_files(output_path, comparisons_table, form_data, experiment_id, sig_z, sig_log, form_data):
+def create_comparison_files(output_path, comparisons_table, form_data, experiment_id, sig_z, sig_log):
     #create dicts for json
     sample_dict={'sample':[]}
     expression_dict={'expression':[]}
     #create stats table for sample.json
     grouped=comparisons_table.groupby(["Comparison ID"])
-    sample_stats=grouped.agg([np.mean, np.std])
+    sample_stats=grouped.agg([np.mean, np.std])['Log Ratio']
+    sample_stats=sample_stats.rename(columns={'mean':'expmean','std':'expstddev'})
     sample_stats["genes"]=grouped.count()["Gene ID"]
     sample_stats["pid"]=[str(experiment_id)+"S"+str(i) for i in range(0,len(sample_stats))]
     sample_stats["sampleUserGivenId"]=sample_stats.index
@@ -111,27 +118,36 @@ def create_comparison_files(output_path, comparisons_table, form_data, experimen
     #store counts in stats
     sample_stats["sig_z_score"]=comparisons_table.groupby(["Comparison ID","sig_z"]).count()['sig_z'].unstack()[True]
     sample_stats["sig_log_ratio"]=comparisons_table.groupby(["Comparison ID","sig_log"]).count()['sig_log'].unstack()[True]
+    sample_stats["sig_log_ratio"]=sample_stats["sig_log_ratio"].fillna(0).astype('int64')
+    sample_stats["sig_z_score"]=sample_stats["sig_z_score"].fillna(0).astype('int64')
     #set pid's for expression.json
-    comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", left_on="Comparison ID", right_on="sampleUserGivenId")
+    comparisons_table=comparisons_table.rename(columns={'Comparison ID':'sampleUserGivenId','Gene ID': 'exp_locus_tag', 'Map ID': "feature_id","Log Ratio":'log_ratio'})
+    comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", on="sampleUserGivenId")
     #pull in metadata spreadsheet if provided
     if 'metadata_template' in form_data and 'metadata_format' in form_data and form_data['metadata_template']:
         meta_table=None
+        meta_cols=["Comparison ID","Title","PubMed","Accession","Organism","Strain","Gene Modification","Experiment Condition","Time Point"]
         try:
             if form_data['metadata_format'] == 'xls' or form_data['metadata_format'] == 'xlsx':
                 meta_table=pd.io.excel.read_excel(form_data['metadata_template'], 0, index_col=None)
-            else if form_data['metadata_format'] == 'csv':        
+            elif form_data['metadata_format'] == 'csv':        
                 meta_table=pd.read_csv(form_data['metadata_template'], header=0)
             else:
                 meta_table=pd.read_table(form_data['metadata_template'], header=0)
-            meta_table=meta_table.rename({'Comparison':'sampleUserGivenId', 'Title':'expname', 'PubMed':'pubmed', 'Accession':'accession', 'Organism':'organism', 'Strain':'strain', 'Gene Modification':'mutant', 'Experiment Condition':'condition', 'Time Point':'timepoint'})
-            sample_stats=sample_stats.merge(meta_table, how="left", on="sampleUserGivenId")
+            meta_key="sampleUserGivenId"
+            meta_table=meta_table[meta_cols].rename(columns={'Comparison ID':'sampleUserGivenId', 'Title':'expname', 'PubMed':'pubmed', 'Accession':'accession', 'Organism':'organism', 'Strain':'strain', 'Gene Modification':'mutant', 'Experiment Condition':'condition', 'Time Point':'timepoint'})
+            to_add=meta_table.columns-sample_stats.columns
+            meta_table=meta_table.set_index('sampleUserGivenId')
+            sample_stats.update(meta_table)
+            sample_stats=sample_stats.merge(meta_table[to_add], left_index=True, right_index=True)
         except:
             sys.stderr.write("failed to use user provide metadata template\n")
             pass
     #populate json dicts
+    sample_stats=sample_stats.fillna("")
     sample_dict['sample']=sample_stats.to_dict(outtype='records')
-    cols = [col for col in comparison_table.columns if col not in ['sig_z', 'sig_log']]
-    expression_dict=['expression']=comparisons_table[cols].rename({'Gene ID': 'exp_locus_tag', 'Map ID': "feature_id","Log Ratio":'log_ratio'}).to_dict(outtype='records')
+    cols = [col for col in comparisons_table.columns if col not in ['sig_z', 'sig_log']]
+    expression_dict['expression']=comparisons_table[cols].to_dict(outtype='records')
     output_file=os.path.join(output_path, 'sample.json')
     out_handle=open(output_file, 'w')
     json.dump(sample_dict, out_handle)
@@ -184,7 +200,7 @@ def place_ids(query_results,cur_table,form_data):
             cur_table["Map ID"][source_id]=target_id
 
 def make_map_query(id_list, form_data, server_setup, chunk_size):
-    current_query={'q':form_data["source_id_type"]+":("+" OR ".join(id_list)+")"}
+    current_query={'q':form_data["source_id_type"]+":("+" OR ".join(id_list)+") AND annotation:PATRIC"}
     current_query["fl"]="feature_id,"+form_data["source_id_type"]
     current_query["rows"]=str(chunk_size)
     current_query["wt"]="json"
@@ -284,7 +300,7 @@ def main():
     #create json files to represent experiment
     experiment_id=uuid.uuid1()
     mapping_dict=create_mapping_file('./', mapping_table, form_data)
-    create_comparison_files('./', comparisons_table, form_data, experiment_id, sig_z, sig_log, metadata_template=None)
+    create_comparison_files('./', comparisons_table, form_data, experiment_id, sig_z, sig_log)
     
 
     
