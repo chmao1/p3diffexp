@@ -12,7 +12,7 @@ from scipy import stats
 
 
 #Input
-#1. trasformation metadata in json with the following:
+#1. metadata in json with the following:
 
 """
 {xfile:"comparisons file",
