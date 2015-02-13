@@ -18,10 +18,10 @@ from scipy import stats
 {xfile:"comparisons file",
 xformat:"csv || tsv || xls ||  xlsx",
 xsetup:"gene_matrix || gene_list",
-source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
+source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id || gi || gene_id || protein_id || seed_id", 
 data_type: "Transcriptomics || Proteomics || Phenomics", 
 title: "User input", 
-description: "User input",
+desc: "User input",
 organism: "user input", 
 pmid: "user_input",
 output_path: "path",
@@ -90,7 +90,7 @@ def list_to_mapping_table(cur_table):
 #experiment.json
 #{"origFileName":"filename","geneMapped":4886,"samples":8,"geneTotal":4985,"cdate":"2013-01-28 13:40:47","desc":"user input","organism":"some org","owner":"user name","title":"user input","pmid":"user input","expid":"whatever","collectionType":"ExpressionExperiment","genesMissed":99,"mdate":"2013-01-28 13:40:47"}
 def create_experiment_file(output_path, mapping_dict, sample_dict, expression_dict, form_data, experiment_id):
-    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":(form_data.get('description','')),"organism":form_data.get('organism',''),"title":form_data.get("title",""),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
+    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":(form_data.get('desc','')),"organism":form_data.get('organism',''),"title":form_data.get("title",""),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
     output_file=os.path.join(output_path, 'experiment.json')
     out_handle=open(output_file, 'w')
     json.dump(experiment_dict, out_handle)
@@ -210,7 +210,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
     req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
     prepared = req.prepare()
-    #pretty_print_POST(prepared)
+    pretty_print_POST(prepared)
     s = requests.Session()
     response=s.send(prepared)
     if not response.ok:
