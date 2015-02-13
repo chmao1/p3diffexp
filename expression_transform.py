@@ -20,10 +20,11 @@ xformat:"csv || tsv || xls ||  xlsx",
 xsetup:"gene_matrix || gene_list",
 source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
 data_type: "Transcriptomics || Proteomics || Phenomics", 
-experiment_title: "User input", 
-experiment_description: "User input",
-organism name: "user input", 
-pubmed_id: "user_input",
+title: "User input", 
+description: "User input",
+organism: "user input", 
+pmid: "user_input",
+output_path: "path",
 "metadata_template":"file",
 "metadata_format":"csv || tsv || xls ||  xlsx"}
 """
@@ -88,10 +89,14 @@ def list_to_mapping_table(cur_table):
 #Sample Output
 #experiment.json
 #{"origFileName":"filename","geneMapped":4886,"samples":8,"geneTotal":4985,"cdate":"2013-01-28 13:40:47","desc":"user input","organism":"some org","owner":"user name","title":"user input","pmid":"user input","expid":"whatever","collectionType":"ExpressionExperiment","genesMissed":99,"mdate":"2013-01-28 13:40:47"}
-def create_experiment_file(output_path, mapping_dict, form_data, experiment_id):
-    experiment_dict={"geneMapped":0,"samples":0,"geneTotal":0,"desc":None,"organism":None,"title":None,"pmid":None,"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":None}
-    experiment_dict["geneMapped"]=mapping_dict["mapped_ids"]
-
+def create_experiment_file(output_path, mapping_dict, sample_dict, expression_dict, form_data, experiment_id):
+    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":(form_data.get('description','')),"organism":form_data.get('organism',''),"title":form_data.get("title",""),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
+    output_file=os.path.join(output_path, 'experiment.json')
+    out_handle=open(output_file, 'w')
+    json.dump(experiment_dict, out_handle)
+    out_handle.close()
+    return experiment_dict
+    
 
 #expression.json
 #{"expression":[{"log_ratio":"0.912","na_feature_id":"36731006","exp_locus_tag":"VBISalEnt101322_0001","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","z_score":"-0.23331085637221843"}]
@@ -232,15 +237,15 @@ def main():
     valid_formats=set(['csv', 'tsv', 'xls', 'xlsx'])
     valid_setups=set(['gene_matrix','gene_list'])
     
-    req_info=['xfile','xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism name'] 
+    req_info=['output_path', 'xfile','xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism'] 
 
     parser = argparse.ArgumentParser()
     userinfo = parser.add_mutually_exclusive_group(required=True)
-    userinfo.add_argument('--ufile', required=True, help='json file from user input')
-    userinfo.add_argument('--ustring', required=True, help='json string from user input')
+    userinfo.add_argument('--ufile', help='json file from user input')
+    userinfo.add_argument('--ustring', help='json string from user input')
     serverinfo = parser.add_mutually_exclusive_group(required=True)
-    serverinfo.add_argument('--sfile', required=True, help='server setup JSON file')
-    serverinfo.add_argument('--sstring', required=True, help='server setup JSON string')
+    serverinfo.add_argument('--sfile', help='server setup JSON file')
+    serverinfo.add_argument('--sstring', help='server setup JSON string')
     args = parser.parse_args()
     if len(sys.argv) ==1:
         parser.print_help()
@@ -248,16 +253,20 @@ def main():
 
     #parse user form data
     form_data=None
+    user_parse=None
+    server_parse=None
+    parse_server = json.loads if 'sstring' in args else json.load
+        
     try:
-        form_data=json.loads(args.u)
+        form_data = json.loads(args.ustring) if 'ustring' in args else json.load(args.ufile)
     except:
-        sys.stderr.write("Failed to parse user provided form data "+args.u+"\n")
+        sys.stderr.write("Failed to parse user provided form data \n")
         raise
     #parse setup data
     try:
-        server_setup=json.loads(args.s)
+        server_setup= json.loads(args.sstring) if 'sstring' in args else json.load(args.sfile)
     except:
-        sys.stderr.write("Failed to parse server data "+args.s+"\n")
+        sys.stderr.write("Failed to parse server data\n")
         raise
 
     #make sure all required info present
@@ -271,15 +280,15 @@ def main():
 
     #read comparisons file
     comparisons_table=None
-    if form_data.xformat == 'csv':
-        comparisons_table=pd.read_csv(args.x, header=0)
-    if form_data.xformat == 'tsv':
-        comparisons_table=pd.read_table(args.x, header=0)
-    if form_data.xformat == 'xls' or form_data.xformat == 'xlsx':
-        comparisons_table=pd.io.excel.read_excel(args.x, 0, index_col=None)
+    if form_data['xformat'] == 'csv':
+        comparisons_table=pd.read_csv(form_data['xfile'], header=0)
+    if form_data['xformat'] == 'tsv':
+        comparisons_table=pd.read_table(form_data['xfile'], header=0)
+    if form_data['xformat'] == 'xls' or form_data['xformat'] == 'xlsx':
+        comparisons_table=pd.io.excel.read_excel(form_data['xfile'], 0, index_col=None)
 
     check_columns=None
-    if form_data.xsetup == 'gene_matrix':
+    if form_data['xsetup'] == 'gene_matrix':
         check_columns=matrix_columns
     else:
         check_columns=list_columns
@@ -287,14 +296,16 @@ def main():
     for i in check_columns:
         columns_ok=columns_ok and i in comparisons_table.columns
     if not columns_ok:
-            sys.stderr.write("Missing appropriate column names in "+form_data.xfile+"\n")
+            sys.stderr.write("Missing appropriate column names in "+form_data['xfile']+"\n")
             sys.exit(2)
 
+    output_path=form_data["output_path"]
+
     #convert gene matrix to list
-    if form_data.xsetup == 'gene_matrix':
+    if form_data['xsetup'] == 'gene_matrix':
         comparisons_table=gene_matrix_to_list(comparisons_table)
 
-    #ensure no ridiculous log ratios
+    #limit log ratios
     comparisons_table.ix[comparisons_table["Log Ratio"] > 1000000, 'Log Ratio']=1000000
     comparisons_table.ix[comparisons_table["Log Ratio"] < -1000000, 'Log Ratio']=-1000000
     comparisons_table=comparisons_table.dropna()
@@ -305,11 +316,11 @@ def main():
     comparisons_table=comparisons_table.merge(mapping_table, how='left', on="Gene ID")
 
     #create json files to represent experiment
-    experiment_id=uuid.uuid1()
-    mapping_dict=create_mapping_file('./', mapping_table, form_data)
-    create_comparison_files('./', comparisons_table, form_data, experiment_id, sig_z, sig_log)
-    
-
+    experiment_id=str(uuid.uuid1())
+    mapping_dict=create_mapping_file(output_path, mapping_table, form_data)
+    (sample_dict, expression_dict) = create_comparison_files(output_path, comparisons_table, form_data, experiment_id, sig_z, sig_log)
+    experiment_dict=create_experiment_file(output_path, mapping_dict, sample_dict, expression_dict, form_data, experiment_id)
+    sys.stdout.write(json.dumps(experiment_dict)+"\n")
     
      
 if __name__ == "__main__":
