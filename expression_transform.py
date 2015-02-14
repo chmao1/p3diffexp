@@ -254,12 +254,12 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     current_query["fl"]="feature_id,"+form_data["source_id_type"]
     current_query["rows"]=str(chunk_size)
     current_query["wt"]="json"
-    print "switch THE HEADER BACK!"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded"}
+    #print "switch THE HEADER BACK!"
     #headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
     req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
     prepared = req.prepare()
-    pretty_print_POST(prepared)
+    #pretty_print_POST(prepared)
     s = requests.Session()
     response=s.send(prepared)
     if not response.ok:
