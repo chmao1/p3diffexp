@@ -239,15 +239,24 @@ def create_mapping_file(output_path, mapping_table, form_data):
 
 
 def place_ids(query_results,cur_table,form_data):
-    for d in query_results.json()['response']['docs']:
-        source_id=None
-        target_id=None
-        if form_data["source_id_type"] in d:
-            source_id=d[form_data["source_id_type"]]
-        if 'feature_id' in d:
-            target_id=d['feature_id']
-        if source_id and target_id:
-            cur_table["feature_id"][source_id]=target_id
+    count=0
+    try:
+        for d in query_results.json()['response']['docs']:
+            source_id=None
+            target_id=None
+            if form_data["source_id_type"] in d:
+                source_id=d[form_data["source_id_type"]]
+            if 'feature_id' in d:
+                target_id=d['feature_id']
+            if source_id and target_id:
+                count+=1
+                cur_table["feature_id"][source_id]=target_id
+    except ValueError:
+        sys.stderr.write("mapping failed. either PATRICs API is down or the Gene IDs are unknown\n")
+        raise
+    if count==0:
+        sys.stderr.write("mapping failed. either PATRICs API is down or the Gene IDs are unknown\n")
+        sys.exit(2)
 
 def make_map_query(id_list, form_data, server_setup, chunk_size):
     current_query={'q':form_data["source_id_type"]+":("+" OR ".join(id_list)+") AND annotation:PATRIC"}
