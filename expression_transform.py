@@ -295,11 +295,12 @@ def main():
     valid_formats=set(['csv', 'tsv', 'xls', 'xlsx'])
     valid_setups=set(['gene_matrix','gene_list'])
     
-    req_info=['output_path','xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism'] 
+    req_info=['xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism'] 
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--xfile', help='the source Expression comparisons file', required=True)
     parser.add_argument('--mfile', help='the metadata template if it exists', required=False)
+    parser.add_argument('--output_path', help='location for output', required=True)
     userinfo = parser.add_mutually_exclusive_group(required=True)
     userinfo.add_argument('--ufile', help='json file from user input')
     userinfo.add_argument('--ustring', help='json string from user input')
@@ -346,7 +347,7 @@ def main():
     #read comparisons file
     comparisons_table=process_table(xfile, form_data['xformat'], form_data['xsetup'], die=True)
 
-    output_path=form_data["output_path"]
+    output_path=args.output_path
 
     #convert gene matrix to list
     if form_data['xsetup'] == 'gene_matrix':
