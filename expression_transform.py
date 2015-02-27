@@ -10,13 +10,16 @@ import os
 import uuid
 from scipy import stats
 
+#stamp out annoying warnings that are beyond control
+import warnings
+warnings.simplefilter(action = "ignore", category = FutureWarning)
+pd.options.mode.chained_assignment = None
 
 #Input
 #1. metadata in json with the following:
 
 """
-{xfile:"comparisons file",
-xformat:"csv || tsv || xls ||  xlsx",
+{xformat:"csv || tsv || xls ||  xlsx",
 xsetup:"gene_matrix || gene_list",
 source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id || gi || gene_id || protein_id || seed_id", 
 data_type: "Transcriptomics || Proteomics || Phenomics", 
@@ -25,7 +28,6 @@ desc: "User input",
 organism: "user input", 
 pmid: "user_input",
 output_path: "path",
-"metadata_template":"file",
 "metadata_format":"csv || tsv || xls ||  xlsx"}
 """
 #2. server info for the data api
@@ -165,7 +167,7 @@ def create_experiment_file(output_path, mapping_dict, sample_dict, expression_di
 #sample.json
 #{"sample":[{"sig_log_ratio":2675,"expmean":"1.258","sampleUserGivenId":"LB_stat_AerobicM9_stat_aerobic","expname":"LB_stat_AerobicM9_stat_aerobic","pid":"8f2e7338-9f04-4ba5-9fe2-5365c857d57fS0","genes":4429,"sig_z_score":139,"expstddev":"1.483"}]}
 
-def create_comparison_files(output_path, comparisons_table, form_data, experiment_id, sig_z, sig_log):
+def create_comparison_files(output_path, comparisons_table, mfile, form_data, experiment_id, sig_z, sig_log):
     #create dicts for json
     sample_dict={'sample':[]}
     expression_dict={'expression':[]}
@@ -182,15 +184,15 @@ def create_comparison_files(output_path, comparisons_table, form_data, experimen
     comparisons_table["sig_z"]=comparisons_table["z_score"] >= sig_z
     comparisons_table["sig_log"]=comparisons_table["log_ratio"] >= sig_log
     #store counts in stats
-    sample_stats["sig_z_score"]=comparisons_table.groupby(["sampleUserGivenId","sig_z"]).count()['sig_z'].unstack()[True]
-    sample_stats["sig_log_ratio"]=comparisons_table.groupby(["sampleUserGivenId","sig_log"]).count()['sig_log'].unstack()[True]
+    sample_stats["sig_z_score"]=comparisons_table.groupby(["sampleUserGivenId","sig_z"]).count()['z_score'].unstack()[True]
+    sample_stats["sig_log_ratio"]=comparisons_table.groupby(["sampleUserGivenId","sig_log"]).count()['log_ratio'].unstack()[True]
     sample_stats["sig_log_ratio"]=sample_stats["sig_log_ratio"].fillna(0).astype('int64')
     sample_stats["sig_z_score"]=sample_stats["sig_z_score"].fillna(0).astype('int64')
     #set pid's for expression.json
     comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", on="sampleUserGivenId")
     #pull in metadata spreadsheet if provided
-    if 'metadata_template' in form_data and 'metadata_format' in form_data and form_data['metadata_template']:
-        meta_table=process_table(form_data['metadata_template'], form_data['metadata_format'], target_setup='template', die=True)
+    if mfile and 'metadata_format' in form_data and mfile.strip():
+        meta_table=process_table(mfile, form_data['metadata_format'], target_setup='template', die=True)
         try:
             meta_key="sampleUserGivenId"
             to_add=meta_table.columns-sample_stats.columns
@@ -293,9 +295,11 @@ def main():
     valid_formats=set(['csv', 'tsv', 'xls', 'xlsx'])
     valid_setups=set(['gene_matrix','gene_list'])
     
-    req_info=['output_path', 'xfile','xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism'] 
+    req_info=['output_path','xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism'] 
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--xfile', help='the source Expression comparisons file', required=True)
+    parser.add_argument('--mfile', help='the metadata template if it exists', required=False)
     userinfo = parser.add_mutually_exclusive_group(required=True)
     userinfo.add_argument('--ufile', help='json file from user input')
     userinfo.add_argument('--ustring', help='json string from user input')
@@ -306,6 +310,10 @@ def main():
     if len(sys.argv) ==1:
         parser.print_help()
         sys.exit(2)
+
+    #get comparison and metadata files
+    xfile=args.xfile
+    mfile=args.mfile if 'mfile' in args else None
 
     #parse user form data
     form_data=None
@@ -330,13 +338,13 @@ def main():
     if (any(missing)):
         sys.stderr.write("Missing required user input data: "+" ".join([req_info[i] for i in range(len(missing)) if missing[i]])+"\n")
         sys.exit(2)
-    if ('metadata_template' in form_data or 'metadata_format' in form_data) and ('metadata_format' not in form_data or 'metadata_template' not in form_data):
+    if (mfile or 'metadata_format' in form_data) and ('metadata_format' not in form_data or not mfile):
         sys.stderr.write("Expression transformation: (file,format) pair must be given for metadata template\n")
         #sys.exit(2)
 
 
     #read comparisons file
-    comparisons_table=process_table(form_data['xfile'], form_data['xformat'], form_data['xsetup'], die=True)
+    comparisons_table=process_table(xfile, form_data['xformat'], form_data['xsetup'], die=True)
 
     output_path=form_data["output_path"]
 
@@ -357,7 +365,7 @@ def main():
     #create json files to represent experiment
     experiment_id=str(uuid.uuid1())
     mapping_dict=create_mapping_file(output_path, mapping_table, form_data)
-    (sample_dict, expression_dict) = create_comparison_files(output_path, comparisons_table, form_data, experiment_id, sig_z, sig_log)
+    (sample_dict, expression_dict) = create_comparison_files(output_path, comparisons_table, mfile, form_data, experiment_id, sig_z, sig_log)
     experiment_dict=create_experiment_file(output_path, mapping_dict, sample_dict, expression_dict, form_data, experiment_id)
     sys.stdout.write(json.dumps(experiment_dict)+"\n")
     
