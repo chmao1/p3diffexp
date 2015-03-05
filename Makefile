@@ -11,7 +11,7 @@ bin: $(BIN_PYTHON)
 
 deploy: deploy-client deploy-service
 deploy-all: deploy-client deploy-service
-deploy-client: scripts 
+deploy-client: deploy-scripts 
 
 deploy-service:
 
