@@ -8,6 +8,7 @@ import numpy as np
 import requests
 import os
 import uuid
+import csv
 from scipy import stats
 
 #stamp out annoying warnings that are beyond control
@@ -90,11 +91,17 @@ def list_to_mapping_table(cur_table):
     return result
 
 #deal with weird naming of columns.
-def fix_headers(cur_table, target_setup, die):
+def fix_headers(cur_table, parameter_type, die):
+    def fix_name(x): return ' '.join(x.split()).strip().lower().replace(" ","_")
     matrix_columns=['gene_id']
     list_columns=['gene_id', 'comparison_id', 'log_ratio']
     template_columns=["comparison_id","title","pubmed","accession","organism","strain","gene_modification","experiment_condition","time_point"]
     check_columns=None
+    target_setup=None
+    if parameter_type=="xfile":
+        target_setup= "gene_list" if all([(fix_name(x) in list_columns) for x in cur_table.columns]) else "gene_matrix"
+    else:
+	target_setup="template"
     limit_columns=True
     if target_setup == 'gene_matrix':
         check_columns=matrix_columns
@@ -108,8 +115,7 @@ def fix_headers(cur_table, target_setup, die):
         rename={'comparison_id':'sampleUserGivenId', 'title':'expname', 'gene_modification':'mutant', 'experiment_condition':'condition', 'time_point':'timepoint'}
     else:
         sys.stderr.write("unrecognized setup "+target_setup+"\n")
-        if die: sys.exit(2)
-    def fix_name(x): return ' '.join(x.split()).strip().lower().replace(" ","_")
+        if die: assert False
     cur_table.columns=[fix_name(x) if fix_name(x) in check_columns else x for x in cur_table.columns]
     #patrics downloadable template is not consistent with its help info
     if 'gene_ids' in cur_table.columns:
@@ -119,30 +125,56 @@ def fix_headers(cur_table, target_setup, die):
         columns_ok=columns_ok and i in cur_table.columns
     if not columns_ok:
             sys.stderr.write("Missing appropriate column names in "+target_setup+"\n")
-            if die: sys.exit(2)
+            if die: assert False
     if limit_columns:
         cur_table=cur_table[check_columns]
     if rename:
        cur_table=cur_table.rename(columns=rename)
-    return cur_table
+    return (target_setup, cur_table)
 
 #read in the comparisons data and metadata
-def process_table(target_file, target_format, target_setup, die):
+def process_table(target_file, param_type, die, target_format="start", tries=0):
+    tries+=1
+    starting=False
+    target_setup=None
     if not os.path.exists(target_file):
         sys.stderr.write("can't find target file "+target_file+"\n")
         if die: sys.exit(2)
+    if target_format=="start":
+        starting=True
+        fileName, fileExtension = os.path.splitext(target_file)
+        target_format=fileExtension.replace('.','').lower()
+    if starting and not target_format in set(["csv","tsv","xls","xlsx"]):
+	temp_handle=open(target_file, 'rb')
+	target_sep=csv.Sniffer().sniff(temp_handle.read(1024))
+        temp_handle.close()
+	if target_sep.delimiter=="\t":
+		target_format="tsv"
+	elif target_sep.delimiter==",":
+		target_format="csv"
+		
     cur_table=None
-    if target_format == 'csv':
-        cur_table=pd.read_csv(target_file, header=0)
-    elif target_format == 'tsv':
-        cur_table=pd.read_table(target_file, header=0)
-    elif target_format == 'xls' or target_format == 'xlsx':
-        cur_table=pd.io.excel.read_excel(target_file, 0, index_col=None)
-    else:
-        sys.stderr.write("unrecognized format "+target_format+" for "+target_setup+"\n")
-        if die: sys.exit(2)
-    cur_table=fix_headers(cur_table, target_setup, die)
-    return cur_table
+    next_up="tsv"
+    try:
+        if target_format == 'tsv':
+            next_up="csv"
+            cur_table=pd.read_table(target_file, header=0)
+        elif target_format == 'csv':
+            next_up="xls"
+            cur_table=pd.read_csv(target_file, header=0)
+        elif target_format == 'xls' or target_format == 'xlsx':
+            cur_table=pd.io.excel.read_excel(target_file, 0, index_col=None)
+        else:
+            sys.stderr.write("unrecognized format "+target_format+" for "+target_setup+"\n")
+            if die: sys.exit(2)
+    	target_setup, cur_table=fix_headers(cur_table, param_type, die)
+    except: 
+        sys.stderr.write("failed at reading "+target_format+" format\n")
+        if tries > 5:
+            raise
+	else:
+            return process_table(target_file, param_type, die, next_up, tries)
+    return (target_setup, cur_table)
 
 #{source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
 #data_type: "Transcriptomics || Proteomics || Phenomics", 
@@ -191,8 +223,8 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     #set pid's for expression.json
     comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", on="sampleUserGivenId")
     #pull in metadata spreadsheet if provided
-    if mfile and 'metadata_format' in form_data and mfile.strip():
-        meta_table=process_table(mfile, form_data['metadata_format'], target_setup='template', die=True)
+    if mfile and mfile.strip():
+        target_setup, meta_table=process_table(mfile, "mfile", die=True)
         try:
             meta_key="sampleUserGivenId"
             to_add=meta_table.columns-sample_stats.columns
@@ -295,7 +327,9 @@ def main():
     valid_formats=set(['csv', 'tsv', 'xls', 'xlsx'])
     valid_setups=set(['gene_matrix','gene_list'])
     
-    req_info=['xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism'] 
+    #req_info=['xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism']
+    req_info=['source_id_type','data_type','experiment_title','experiment_description','organism']
+    
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--xfile', help='the source Expression comparisons file', required=True)
@@ -339,18 +373,18 @@ def main():
     if (any(missing)):
         sys.stderr.write("Missing required user input data: "+" ".join([req_info[i] for i in range(len(missing)) if missing[i]])+"\n")
         sys.exit(2)
-    if (mfile or 'metadata_format' in form_data) and ('metadata_format' not in form_data or not mfile):
-        sys.stderr.write("Expression transformation: (file,format) pair must be given for metadata template\n")
+    #if (mfile or 'metadata_format' in form_data) and ('metadata_format' not in form_data or not mfile):
+    #    sys.stderr.write("Expression transformation: (file,format) pair must be given for metadata template\n")
         #sys.exit(2)
 
 
     #read comparisons file
-    comparisons_table=process_table(xfile, form_data['xformat'], form_data['xsetup'], die=True)
+    target_setup, comparisons_table=process_table(xfile, "xfile", die=True)
 
     output_path=args.output_path
 
     #convert gene matrix to list
-    if form_data['xsetup'] == 'gene_matrix':
+    if target_setup == 'gene_matrix':
         comparisons_table=gene_matrix_to_list(comparisons_table)
 
     #limit log ratios
