@@ -357,13 +357,13 @@ def main():
     parse_server = json.loads if 'sstring' in args else json.load
         
     try:
-        form_data = json.loads(args.ustring) if 'ustring' in args else json.load(args.ufile)
+        form_data = json.loads(args.ustring) if args.ustring else json.load(open(args.ufile,'r'))
     except:
         sys.stderr.write("Failed to parse user provided form data \n")
         raise
     #parse setup data
     try:
-        server_setup= json.loads(args.sstring) if 'sstring' in args else json.load(args.sfile)
+        server_setup= json.loads(args.sstring) if args.sstring else json.load(open(args.sfile,'r'))
     except:
         sys.stderr.write("Failed to parse server data\n")
         raise
