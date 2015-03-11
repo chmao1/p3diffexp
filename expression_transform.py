@@ -150,8 +150,10 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
         temp_handle.close()
 	if target_sep.delimiter=="\t":
 		target_format="tsv"
+                sys.stdout.write("guessing "+target_format+" format\n")
 	elif target_sep.delimiter==",":
 		target_format="csv"
+                sys.stdout.write("guessing "+target_format+" format\n")
 		
     cur_table=None
     next_up="tsv"
@@ -169,10 +171,11 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
             if die: sys.exit(2)
     	target_setup, cur_table=fix_headers(cur_table, param_type, die)
     except: 
-        sys.stderr.write("failed at reading "+target_format+" format\n")
+        sys.stdout.write("failed at reading "+target_format+" format\n")
         if tries > 5:
             raise
 	else:
+            sys.stdout.write("guessing "+next_up+" format\n")
             return process_table(target_file, param_type, die, next_up, tries)
     return (target_setup, cur_table)
 
@@ -224,6 +227,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", on="sampleUserGivenId")
     #pull in metadata spreadsheet if provided
     if mfile and mfile.strip():
+        sys.stdout.write("reading metadata template\n")
         target_setup, meta_table=process_table(mfile, "mfile", die=True)
         try:
             meta_key="sampleUserGivenId"
@@ -379,6 +383,7 @@ def main():
 
 
     #read comparisons file
+    sys.stdout.write("reading comparisons file\n")
     target_setup, comparisons_table=process_table(xfile, "xfile", die=True)
 
     output_path=args.output_path
