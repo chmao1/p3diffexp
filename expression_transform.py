@@ -94,6 +94,7 @@ def list_to_mapping_table(cur_table):
 def fix_headers(cur_table, parameter_type, die):
     def fix_name(x, all_columns): 
         fixed_name=' '.join(x.split()).strip().lower().replace(" ","_")
+        #patrics downloadable template is not consistent with its help info
         if fixed_name.endswith('s') and fixed_name[:-1] in set(all_columns):
             fixed_name=fixed_name[:-1]
         return fixed_name
@@ -123,9 +124,6 @@ def fix_headers(cur_table, parameter_type, die):
         sys.stderr.write("unrecognized setup "+target_setup+"\n")
         if die: assert False
     cur_table.columns=[fix_name(x,all_columns) if fix_name(x,all_columns) in check_columns else x for x in cur_table.columns]
-    #patrics downloadable template is not consistent with its help info
-    if 'gene_ids' in cur_table.columns:
-        cur_table=cur_table.rename(columns={'gene_ids':'gene_id'})
     columns_ok = True
     for i in check_columns:
         columns_ok=columns_ok and i in cur_table.columns
