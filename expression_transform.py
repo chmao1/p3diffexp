@@ -92,7 +92,12 @@ def list_to_mapping_table(cur_table):
 
 #deal with weird naming of columns.
 def fix_headers(cur_table, parameter_type, die):
-    def fix_name(x): return ' '.join(x.split()).strip().lower().replace(" ","_")
+    def fix_name(x): 
+        fixed_name=' '.join(x.split()).strip().lower().replace(" ","_")
+        if fixed_name.endswith('s'):
+            fixed_name=fixed_name[:-1]
+        return fixed_name
+
     matrix_columns=['gene_id']
     list_columns=['gene_id', 'comparison_id', 'log_ratio']
     template_columns=["comparison_id","title","pubmed","accession","organism","strain","gene_modification","experiment_condition","time_point"]
