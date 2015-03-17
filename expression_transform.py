@@ -92,14 +92,21 @@ def list_to_mapping_table(cur_table):
 
 #deal with weird naming of columns.
 def fix_headers(cur_table, parameter_type, die):
-    def fix_name(x): return ' '.join(x.split()).strip().lower().replace(" ","_")
+    def fix_name(x, all_columns): 
+        fixed_name=' '.join(x.split()).strip().lower().replace(" ","_")
+        #patrics downloadable template is not consistent with its help info
+        if fixed_name.endswith('s') and fixed_name[:-1] in set(all_columns):
+            fixed_name=fixed_name[:-1]
+        return fixed_name
+
     matrix_columns=['gene_id']
     list_columns=['gene_id', 'comparison_id', 'log_ratio']
     template_columns=["comparison_id","title","pubmed","accession","organism","strain","gene_modification","experiment_condition","time_point"]
+    all_columns=list_columns+template_columns
     check_columns=None
     target_setup=None
     if parameter_type=="xfile":
-        target_setup= "gene_list" if all([(fix_name(x) in list_columns) for x in cur_table.columns]) else "gene_matrix"
+        target_setup= "gene_list" if all([(fix_name(x,all_columns) in list_columns) for x in cur_table.columns]) else "gene_matrix"
     else:
 	target_setup="template"
     limit_columns=True
@@ -116,10 +123,7 @@ def fix_headers(cur_table, parameter_type, die):
     else:
         sys.stderr.write("unrecognized setup "+target_setup+"\n")
         if die: assert False
-    cur_table.columns=[fix_name(x) if fix_name(x) in check_columns else x for x in cur_table.columns]
-    #patrics downloadable template is not consistent with its help info
-    if 'gene_ids' in cur_table.columns:
-        cur_table=cur_table.rename(columns={'gene_ids':'gene_id'})
+    cur_table.columns=[fix_name(x,all_columns) if fix_name(x,all_columns) in check_columns else x for x in cur_table.columns]
     columns_ok = True
     for i in check_columns:
         columns_ok=columns_ok and i in cur_table.columns
