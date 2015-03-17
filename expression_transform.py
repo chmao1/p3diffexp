@@ -323,7 +323,7 @@ def chunker(seq, size):
 
 def map_gene_ids(cur_table, form_data, server_setup):
     cur_table["feature_id"]=np.nan
-    chunk_size=10000
+    chunk_size=250
     for i in chunker(cur_table['exp_locus_tag'], chunk_size):
         mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
         place_ids(mapping_results, cur_table, form_data)
