@@ -310,7 +310,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     #headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
     req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
     prepared = req.prepare()
-    pretty_print_POST(prepared)
+    #pretty_print_POST(prepared)
     s = requests.Session()
     response=s.send(prepared)
     if not response.ok:
