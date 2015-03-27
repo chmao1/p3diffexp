@@ -10,6 +10,9 @@ import os
 import uuid
 import csv
 from scipy import stats
+#requires 2.7.9 or greater to deal with https comodo intermediate certs
+if sys.version_info < (2, 7, 9):
+        raise "must use python 2.7 or greater"
 
 #stamp out annoying warnings that are beyond control
 import warnings
