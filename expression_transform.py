@@ -11,7 +11,7 @@ import uuid
 import csv
 from scipy import stats
 #requires 2.7.9 or greater to deal with https comodo intermediate certs
-if sys.version_info < (2, 7, 9):
+if sys.version_info < (2, 7):
         raise "must use python 2.7 or greater"
 
 #stamp out annoying warnings that are beyond control
@@ -318,7 +318,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     response=s.send(prepared)
     if not response.ok:
         sys.stderr.write("Mapping API not responding. Please try again later.\n")
-        #sys.exit(2)
+        sys.exit(2)
     return response
 
 def chunker(seq, size):
