@@ -341,9 +341,6 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
         sys.exit(2)
     return response
 
-def find_source_type(id_list, form_data, server_setup):
-    #issue query to determine likely source id
-    response=requests.get
 
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
