@@ -304,7 +304,12 @@ def place_ids(query_results,cur_table,form_data):
         sys.exit(2)
 
 def make_map_query(id_list, form_data, server_setup, chunk_size):
-    current_query={'q':form_data["source_id_type"]+":("+" OR ".join(id_list)+") AND annotation:PATRIC"}
+    source_types=["refseq_locus_tag","alt_locus_tag","feature_id","gi","protein_id","patric_id"]
+    current_query={'q':""}
+    map_queries=[]
+    for s_type in source_types:
+        map_queries.append(s_type+":("+" OR ".join(id_list)+")")
+    current_query["q"]+=" OR ".join(map_queries)+" AND annotation:PATRIC"
     current_query["fl"]="feature_id,"+form_data["source_id_type"]
     current_query["rows"]=str(chunk_size)
     current_query["wt"]="json"
@@ -321,12 +326,16 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
         #sys.exit(2)
     return response
 
+def find_source_type(id_list, form_data, server_setup):
+    #issue query to determine likely source id
+    response=requests.get
+
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
 def map_gene_ids(cur_table, form_data, server_setup):
     cur_table["feature_id"]=np.nan
-    chunk_size=250
+    chunk_size=1000
     for i in chunker(cur_table['exp_locus_tag'], chunk_size):
         mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
         place_ids(mapping_results, cur_table, form_data)
