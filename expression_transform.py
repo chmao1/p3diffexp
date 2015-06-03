@@ -10,6 +10,9 @@ import os
 import uuid
 import csv
 from scipy import stats
+#requires 2.7.9 or greater to deal with https comodo intermediate certs
+if sys.version_info < (2, 7):
+        raise "must use python 2.7 or greater"
 
 #stamp out annoying warnings that are beyond control
 import warnings
@@ -281,18 +284,25 @@ def create_mapping_file(output_path, mapping_table, form_data):
 
 
 def place_ids(query_results,cur_table,form_data):
+    source_types=form_data["source_types"]+form_data["int_types"]
     count=0
     try:
         for d in query_results.json()['response']['docs']:
-            source_id=None
+            source_ids=[]
             target_id=None
-            if form_data["source_id_type"] in d:
-                source_id=d[form_data["source_id_type"]]
+            for id_type in source_types:
+                if id_type in d:
+                    source_ids.append(d[id_type])
+            
             if 'feature_id' in d:
                 target_id=d['feature_id']
-            if source_id and target_id:
-                count+=1
-                cur_table["feature_id"][source_id]=target_id
+            if target_id:
+                #because which of the source id's are in the input data check them locally against the exp_locus_tag
+                for source_id in source_ids:
+                    if source_id in cur_table["feature_id"]:
+                        count+=1
+                        cur_table["feature_id"][source_id]=target_id
+                        break
     except ValueError:
         sys.stderr.write("mapping failed. either PATRICs API is down or the Gene IDs are unknown\n")
         raise
@@ -301,8 +311,21 @@ def place_ids(query_results,cur_table,form_data):
         sys.exit(2)
 
 def make_map_query(id_list, form_data, server_setup, chunk_size):
-    current_query={'q':form_data["source_id_type"]+":("+" OR ".join(id_list)+") AND annotation:PATRIC"}
-    current_query["fl"]="feature_id,"+form_data["source_id_type"]
+    source_types=form_data["source_types"]
+    int_types=form_data["int_types"]
+    current_query={'q':""}
+    map_queries=[]
+    int_ids=[]
+    for id in id_list:
+        if id.isdigit():
+            int_ids.append(id)
+    if len(int_ids):
+        for s_type in int_types:
+            map_queries.append("("+s_type+":("+" OR ".join(int_ids)+"))")
+    for s_type in source_types:
+        map_queries.append("("+s_type+":("+" OR ".join(id_list)+"))")
+    current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
+    current_query["fl"]="feature_id,"+",".join(source_types)
     current_query["rows"]=str(chunk_size)
     current_query["wt"]="json"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
@@ -315,15 +338,16 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     response=s.send(prepared)
     if not response.ok:
         sys.stderr.write("Mapping API not responding. Please try again later.\n")
-        #sys.exit(2)
+        sys.exit(2)
     return response
+
 
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
 def map_gene_ids(cur_table, form_data, server_setup):
     cur_table["feature_id"]=np.nan
-    chunk_size=250
+    chunk_size=1000
     for i in chunker(cur_table['exp_locus_tag'], chunk_size):
         mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
         place_ids(mapping_results, cur_table, form_data)
@@ -336,7 +360,7 @@ def main():
     valid_setups=set(['gene_matrix','gene_list'])
     
     #req_info=['xformat','xsetup','source_id_type','data_type','experiment_title','experiment_description','organism']
-    req_info=['source_id_type','data_type','experiment_title','experiment_description','organism']
+    req_info=['data_type','experiment_title','experiment_description','organism']
     
 
     parser = argparse.ArgumentParser()
@@ -375,6 +399,10 @@ def main():
     except:
         sys.stderr.write("Failed to parse server data\n")
         raise
+
+    #part of auto-detection of id type add source id types to map from
+    form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id"]#,"gi"]
+    form_data["int_types"]=["gi"]
 
     #make sure all required info present
     missing=[x not in form_data for x in req_info]
