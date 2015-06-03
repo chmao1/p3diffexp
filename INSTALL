@@ -1,0 +1,8 @@
+Requires the following python packages:
+pandas
+scipy
+numpy
+requests
+
+Dev on ubuntu requires deb:
+ca-certificates

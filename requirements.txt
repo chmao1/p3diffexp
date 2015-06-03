@@ -1,0 +1,10 @@
+cython
+pytables
+sqlalchemy
+matplotlib
+openpyxl
+xlrd
+pandas
+scipy
+numpy
+requests
