@@ -226,8 +226,21 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     comparisons_table["sig_z"]=comparisons_table["z_score"] >= sig_z
     comparisons_table["sig_log"]=comparisons_table["log_ratio"] >= sig_log
     #store counts in stats
-    sample_stats["sig_z_score"]=comparisons_table.groupby(["sampleUserGivenId","sig_z"]).count()['z_score'].unstack()[True]
-    sample_stats["sig_log_ratio"]=comparisons_table.groupby(["sampleUserGivenId","sig_log"]).count()['log_ratio'].unstack()[True]
+    z_score_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_z"]).count()['z_score'].unstack()
+    if True in z_score_breakdown:
+        sample_stats["sig_z_score"]=z_score_breakdown[True]
+    else:
+        z_score_breakdown.columns=[True]
+        z_score_breakdown[True]=z_score_breakdown[True].apply(lambda x: 0)
+        sample_stats["sig_z_score"]=z_score_breakdown[True]
+
+    log_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_log"]).count()['log_ratio'].unstack()
+    if True in log_breakdown:
+        sample_stats["sig_log_ratio"]=log_breakdown[True]
+    else:
+        log_breakdown.columns=[True]
+        log_breakdown[True]=log_breakdown[True].apply(lambda x: 0)
+        sample_stats["sig_log_ratio"]=log_breakdown[True]
     sample_stats["sig_log_ratio"]=sample_stats["sig_log_ratio"].fillna(0).astype('int64')
     sample_stats["sig_z_score"]=sample_stats["sig_z_score"].fillna(0).astype('int64')
     #set pid's for expression.json
