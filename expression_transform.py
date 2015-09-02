@@ -223,8 +223,8 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     sample_stats["expname"]=sample_stats.index
     #get zscore and significance columns
     comparisons_table["z_score"]=grouped.transform(stats.zscore)
-    comparisons_table["sig_z"]=comparisons_table["z_score"] >= sig_z
-    comparisons_table["sig_log"]=comparisons_table["log_ratio"] >= sig_log
+    comparisons_table["sig_z"]=comparisons_table["z_score"].abs() >= sig_z
+    comparisons_table["sig_log"]=comparisons_table["log_ratio"].abs() >= sig_log
     #store counts in stats
     z_score_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_z"]).count()['z_score'].unstack()
     if True in z_score_breakdown:
