@@ -10,6 +10,8 @@ import os
 import uuid
 import csv
 from scipy import stats
+from itertools import islice
+
 #requires 2.7.9 or greater to deal with https comodo intermediate certs
 if sys.version_info < (2, 7):
         raise "must use python 2.7 or greater"
@@ -153,7 +155,7 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
         target_format=fileExtension.replace('.','').lower()
     if starting and not target_format in set(["csv","tsv","xls","xlsx"]):
 	temp_handle=open(target_file, 'rb')
-	target_sep=csv.Sniffer().sniff(temp_handle.read(1024))
+	target_sep=csv.Sniffer().sniff("\n".join(list(islice(temp_handle,10))))
         temp_handle.close()
 	if target_sep.delimiter=="\t":
 		target_format="tsv"
