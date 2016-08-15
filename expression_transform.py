@@ -341,7 +341,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
         map_queries.append("("+s_type+":("+" OR ".join(id_list)+"))")
     current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
     current_query["fl"]="feature_id,"+",".join(source_types)
-    current_query["rows"]=str(chunk_size)
+    current_query["rows"]="20000"
     current_query["wt"]="json"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
     #print "switch THE HEADER BACK!"
