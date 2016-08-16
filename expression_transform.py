@@ -340,6 +340,8 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     for s_type in source_types:
         map_queries.append("("+s_type+":("+" OR ".join(id_list)+"))")
     current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
+    if "genome_id" in form_data and form_data["genome_id"]:
+        current_query["q"]+=" AND genome_id:"+form_data["genome_id"]
     current_query["fl"]="feature_id,"+",".join(source_types)
     current_query["rows"]="20000"
     current_query["wt"]="json"
