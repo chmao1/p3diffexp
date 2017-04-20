@@ -339,7 +339,10 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
             map_queries.append("("+s_type+":("+" OR ".join(int_ids)+"))")
     for s_type in source_types:
         map_queries.append("("+s_type+":("+" OR ".join(id_list)+"))")
-    current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
+    if form_data["host"]:
+        current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:RefSeq"
+    else:
+        current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
     if "genome_id" in form_data and form_data["genome_id"]:
         current_query["q"]+=" AND genome_id:"+form_data["genome_id"]
     current_query["fl"]="feature_id,"+",".join(source_types)
