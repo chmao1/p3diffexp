@@ -326,26 +326,30 @@ def place_ids(query_results,cur_table,form_data):
         sys.exit(2)
 
 def make_map_query(id_list, form_data, server_setup, chunk_size):
+    id_list = id_list.apply(str)
     source_types=form_data["source_types"]
     int_types=form_data["int_types"]
     current_query={'q':""}
     map_queries=[]
     int_ids=[]
-    for id in id_list:
-        if id.isdigit():
-            int_ids.append(id)
-    if len(int_ids):
-        for s_type in int_types:
-            map_queries.append("("+s_type+":("+" OR ".join(int_ids)+"))")
+    if "id_type" in form_data and len(form_data["id_type"]) > 0:
+        source_types=form_data["id_type"]
+    else:
+        for id in id_list:
+            if np.issubdtype(type(id), np.number) or id.isdigit():
+                int_ids.append(str(id))
+        if len(int_ids):
+            for s_type in int_types:
+                map_queries.append("("+s_type+":("+" OR ".join(int_ids)+"))")
     for s_type in source_types:
         map_queries.append("("+s_type+":("+" OR ".join(id_list)+"))")
-    if form_data["host"]:
+    if "host" in form_data and form_data["host"]:
         current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:RefSeq"
     else:
         current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
     if "genome_id" in form_data and form_data["genome_id"]:
         current_query["q"]+=" AND genome_id:"+form_data["genome_id"]
-    current_query["fl"]="feature_id,"+",".join(source_types)
+    current_query["fl"]="feature_id,"+",".join(source_types)+","+",".join(int_types)
     current_query["rows"]="20000"
     current_query["wt"]="json"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
@@ -422,7 +426,7 @@ def main():
 
     #part of auto-detection of id type add source id types to map from
     form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id"]#,"gi"]
-    form_data["int_types"]=["gi"]
+    form_data["int_types"]=["gi","gene_id"]
 
     #make sure all required info present
     missing=[x not in form_data for x in req_info]
