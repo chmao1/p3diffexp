@@ -224,7 +224,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     sample_stats["sampleUserGivenId"]=sample_stats.index
     sample_stats["expname"]=sample_stats.index
     #get zscore and significance columns
-    comparisons_table["z_score"]=grouped.transform(stats.zscore)
+    comparisons_table["z_score"]=grouped.transform(stats.zscore)["log_ratio"]
     comparisons_table["sig_z"]=comparisons_table["z_score"].abs() >= sig_z
     comparisons_table["sig_log"]=comparisons_table["log_ratio"].abs() >= sig_log
     #store counts in stats
@@ -284,8 +284,8 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
 #creates mapping.json for results
 def create_mapping_file(output_path, mapping_table, form_data):
     mapping_dict={"mapping":{"unmapped_list":[],"unmapped_ids":0,"mapped_list":[],"mapped_ids":0}}
-    mapping_dict['mapping']['unmapped_list']=mapping_table[mapping_table.isnull().any(axis=1)][['exp_locus_tag']].to_dict(outtype='records')
-    mapping_dict['mapping']['mapped_list']=mapping_table[mapping_table.notnull().all(axis=1)].to_dict(outtype='records')
+    mapping_dict['mapping']['unmapped_list']=mapping_table[mapping_table.isnull().any(axis=1)][['exp_locus_tag']].to_dict('records')
+    mapping_dict['mapping']['mapped_list']=mapping_table[mapping_table.notnull().all(axis=1)].to_dict('records')
     mapping_dict['mapping']['unmapped_ids']=len(mapping_dict['mapping']['unmapped_list'])
     mapping_dict['mapping']['mapped_ids']=len(mapping_dict['mapping']['mapped_list'])
     output_file=os.path.join(output_path, 'mapping.json')
@@ -332,8 +332,8 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     current_query={'q':""}
     map_queries=[]
     int_ids=[]
-    if "id_type" in form_data and len(form_data["id_type"]) > 0:
-        source_types=form_data["id_type"]
+    if "source_id_types" in form_data and len(form_data["source_id_types"]) > 0:
+        source_types=form_data["source_id_types"]
     else:
         for id in id_list:
             if np.issubdtype(type(id), np.number) or id.isdigit():
