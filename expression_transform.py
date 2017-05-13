@@ -197,7 +197,7 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
 #experiment.json
 #{"origFileName":"filename","geneMapped":4886,"samples":8,"geneTotal":4985,"cdate":"2013-01-28 13:40:47","desc":"user input","organism":"some org","owner":"user name","title":"user input","pmid":"user input","expid":"whatever","collectionType":"ExpressionExperiment","genesMissed":99,"mdate":"2013-01-28 13:40:47"}
 def create_experiment_file(output_path, mapping_dict, sample_dict, expression_dict, form_data, experiment_id):
-    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":(form_data.get('desc','')),"organism":form_data.get('organism',''),"title":form_data.get("title",""),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
+    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":form_data.get('desc',form_data.get("experiment_description","")),"organism":form_data.get('organism',''),"title":form_data.get("title",form_data.get("experiment_title","")),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
     output_file=os.path.join(output_path, 'experiment.json')
     out_handle=open(output_file, 'w')
     json.dump(experiment_dict, out_handle)
