@@ -197,7 +197,7 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
 #experiment.json
 #{"origFileName":"filename","geneMapped":4886,"samples":8,"geneTotal":4985,"cdate":"2013-01-28 13:40:47","desc":"user input","organism":"some org","owner":"user name","title":"user input","pmid":"user input","expid":"whatever","collectionType":"ExpressionExperiment","genesMissed":99,"mdate":"2013-01-28 13:40:47"}
 def create_experiment_file(output_path, mapping_dict, sample_dict, expression_dict, form_data, experiment_id):
-    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":(form_data.get('desc','')),"organism":form_data.get('organism',''),"title":form_data.get("title",""),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
+    experiment_dict={"geneMapped":mapping_dict["mapping"]["mapped_ids"],"samples":len(sample_dict['sample']),"geneTotal":mapping_dict["mapping"]["mapped_ids"]+mapping_dict["mapping"]["unmapped_ids"],"desc":form_data.get('desc',form_data.get("experiment_description","")),"organism":form_data.get('organism',''),"title":form_data.get("title",form_data.get("experiment_title","")),"pmid":form_data.get("pmid",""),"expid":experiment_id,"collectionType":"ExpressionExperiment","genesMissed":mapping_dict["mapping"]["unmapped_ids"]}
     output_file=os.path.join(output_path, 'experiment.json')
     out_handle=open(output_file, 'w')
     json.dump(experiment_dict, out_handle)
@@ -224,7 +224,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     sample_stats["sampleUserGivenId"]=sample_stats.index
     sample_stats["expname"]=sample_stats.index
     #get zscore and significance columns
-    comparisons_table["z_score"]=grouped.transform(stats.zscore)
+    comparisons_table["z_score"]=grouped.transform(stats.zscore)["log_ratio"]
     comparisons_table["sig_z"]=comparisons_table["z_score"].abs() >= sig_z
     comparisons_table["sig_log"]=comparisons_table["log_ratio"].abs() >= sig_log
     #store counts in stats
@@ -284,8 +284,8 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
 #creates mapping.json for results
 def create_mapping_file(output_path, mapping_table, form_data):
     mapping_dict={"mapping":{"unmapped_list":[],"unmapped_ids":0,"mapped_list":[],"mapped_ids":0}}
-    mapping_dict['mapping']['unmapped_list']=mapping_table[mapping_table.isnull().any(axis=1)][['exp_locus_tag']].to_dict(outtype='records')
-    mapping_dict['mapping']['mapped_list']=mapping_table[mapping_table.notnull().all(axis=1)].to_dict(outtype='records')
+    mapping_dict['mapping']['unmapped_list']=mapping_table[mapping_table.isnull().any(axis=1)][['exp_locus_tag']].to_dict('records')
+    mapping_dict['mapping']['mapped_list']=mapping_table[mapping_table.notnull().all(axis=1)].to_dict('records')
     mapping_dict['mapping']['unmapped_ids']=len(mapping_dict['mapping']['unmapped_list'])
     mapping_dict['mapping']['mapped_ids']=len(mapping_dict['mapping']['mapped_list'])
     output_file=os.path.join(output_path, 'mapping.json')
@@ -326,26 +326,30 @@ def place_ids(query_results,cur_table,form_data):
         sys.exit(2)
 
 def make_map_query(id_list, form_data, server_setup, chunk_size):
+    id_list = id_list.apply(str)
     source_types=form_data["source_types"]
     int_types=form_data["int_types"]
     current_query={'q':""}
     map_queries=[]
     int_ids=[]
-    for id in id_list:
-        if id.isdigit():
-            int_ids.append(id)
-    if len(int_ids):
-        for s_type in int_types:
-            map_queries.append("("+s_type+":("+" OR ".join(int_ids)+"))")
+    if "source_id_types" in form_data and len(form_data["source_id_types"]) > 0:
+        source_types=form_data["source_id_types"]
+    else:
+        for id in id_list:
+            if np.issubdtype(type(id), np.number) or id.isdigit():
+                int_ids.append(str(id))
+        if len(int_ids):
+            for s_type in int_types:
+                map_queries.append("("+s_type+":("+" OR ".join(int_ids)+"))")
     for s_type in source_types:
         map_queries.append("("+s_type+":("+" OR ".join(id_list)+"))")
-    if form_data["host"]:
+    if "host" in form_data and form_data["host"]:
         current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:RefSeq"
     else:
         current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
     if "genome_id" in form_data and form_data["genome_id"]:
         current_query["q"]+=" AND genome_id:"+form_data["genome_id"]
-    current_query["fl"]="feature_id,"+",".join(source_types)
+    current_query["fl"]="feature_id,"+",".join(source_types)+","+",".join(int_types)
     current_query["rows"]="20000"
     current_query["wt"]="json"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
@@ -422,7 +426,7 @@ def main():
 
     #part of auto-detection of id type add source id types to map from
     form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id"]#,"gi"]
-    form_data["int_types"]=["gi"]
+    form_data["int_types"]=["gi","gene_id"]
 
     #make sure all required info present
     missing=[x not in form_data for x in req_info]
