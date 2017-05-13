@@ -332,8 +332,8 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     current_query={'q':""}
     map_queries=[]
     int_ids=[]
-    if "source_id_types" in form_data and len(form_data["source_id_types"]) > 0:
-        source_types=form_data["source_id_types"]
+    if "source_id_type" in form_data and len(form_data["source_id_type"]) > 0:
+        source_types=[form_data["source_id_type"]]
     else:
         for id in id_list:
             if np.issubdtype(type(id), np.number) or id.isdigit():
