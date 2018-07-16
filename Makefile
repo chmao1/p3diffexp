@@ -8,10 +8,16 @@ DEPLOY_RUNTIME ?= /kb/runtime
 all: bin
 
 bin: $(BIN_PYTHON)
+	ln -s -f expression_transform $(TOP_DIR)/bin/expression_transform.py
 
 deploy: deploy-client deploy-service
 deploy-all: deploy-client deploy-service
+
+#
+# Ugh. Calling code wants name with .py.
+#
 deploy-client: deploy-scripts 
+	ln -s -f expression_transform $(TARGET)/bin/expression_transform.py
 
 deploy-service:
 

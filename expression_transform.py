@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import argparse
 import pandas as pd
@@ -397,29 +397,29 @@ def main():
     serverinfo = parser.add_mutually_exclusive_group(required=True)
     serverinfo.add_argument('--sfile', help='server setup JSON file')
     serverinfo.add_argument('--sstring', help='server setup JSON string')
-    args = parser.parse_args()
+    map_args = parser.parse_args()
     if len(sys.argv) ==1:
         parser.print_help()
         sys.exit(2)
 
     #get comparison and metadata files
-    xfile=args.xfile
-    mfile=args.mfile if 'mfile' in args else None
+    xfile=map_args.xfile
+    mfile=map_args.mfile if 'mfile' in map_args else None
 
     #parse user form data
     form_data=None
     user_parse=None
     server_parse=None
-    parse_server = json.loads if 'sstring' in args else json.load
+    parse_server = json.loads if 'sstring' in map_args else json.load
         
     try:
-        form_data = json.loads(args.ustring) if args.ustring else json.load(open(args.ufile,'r'))
+        form_data = json.loads(map_args.ustring) if map_args.ustring else json.load(open(map_args.ufile,'r'))
     except:
         sys.stderr.write("Failed to parse user provided form data \n")
         raise
     #parse setup data
     try:
-        server_setup= json.loads(args.sstring) if args.sstring else json.load(open(args.sfile,'r'))
+        server_setup= json.loads(map_args.sstring) if map_args.sstring else json.load(open(map_args.sfile,'r'))
     except:
         sys.stderr.write("Failed to parse server data\n")
         raise
@@ -442,7 +442,7 @@ def main():
     sys.stdout.write("reading comparisons file\n")
     target_setup, comparisons_table=process_table(xfile, "xfile", die=True)
 
-    output_path=args.output_path
+    output_path=map_args.output_path
 
     #convert gene matrix to list
     if target_setup == 'gene_matrix':
