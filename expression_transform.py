@@ -178,6 +178,10 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
         else:
             sys.stderr.write("unrecognized format "+target_format+" for "+target_setup+"\n")
             if die: sys.exit(2)
+            
+        #assume the first column is "gene_id" for the comparison table and rename it as "gene_id" to handle user misspelled column name for gene_id                                                                                         
+        if param_type=="xfile":
+            cur_table=cur_table.rename(columns={cur_table.columns[0]:'gene_id'})            
     	target_setup, cur_table=fix_headers(cur_table, param_type, die)
     except: 
         sys.stdout.write("failed at reading "+target_format+" format\n")
