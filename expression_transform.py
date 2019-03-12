@@ -71,7 +71,7 @@ def pretty_print_POST(req):
 def gene_list_to_matrix(cur_table):
     comparisons=set(cur_table['sampleUserGivenId'])
     genes=set(cur_table['exp_locus_tag'])
-    result=pd.DataFrame(index=sorted(list(genes)), columns=sorted(list(comparisons)))
+    result=pd.DataFrame(index=list(genes), columns=list(comparisons))
     result['exp_locus_tag']=result.index
     gene_pos=cur_table.columns.get_loc('exp_locus_tag')
     comparison_pos=cur_table.columns.get_loc('sampleUserGivenId')
@@ -91,7 +91,7 @@ def gene_matrix_to_list(cur_table):
 
 def list_to_mapping_table(cur_table):
     genes=set(cur_table['exp_locus_tag'])
-    result=pd.DataFrame(index=sorted(list(genes)))
+    result=pd.DataFrame(index=list(genes))
     result['exp_locus_tag']=result.index
     return result
 
@@ -220,7 +220,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     sample_dict={'sample':[]}
     expression_dict={'expression':[]}
     #create stats table for sample.json
-    grouped=comparisons_table.groupby(["sampleUserGivenId"])
+    grouped=comparisons_table.groupby(["sampleUserGivenId"], sort=False)
     sample_stats=grouped.agg([np.mean, np.std])['log_ratio']
     sample_stats=sample_stats.rename(columns={'mean':'expmean','std':'expstddev'})
     sample_stats["genes"]=grouped.count()["exp_locus_tag"]
@@ -232,7 +232,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     comparisons_table["sig_z"]=comparisons_table["z_score"].abs() >= sig_z
     comparisons_table["sig_log"]=comparisons_table["log_ratio"].abs() >= sig_log
     #store counts in stats
-    z_score_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_z"]).count()['z_score'].unstack()
+    z_score_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_z"], sort=False).count()['z_score'].unstack()
     if True in z_score_breakdown:
         sample_stats["sig_z_score"]=z_score_breakdown[True]
     else:
@@ -240,7 +240,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
         z_score_breakdown[True]=z_score_breakdown[True].apply(lambda x: 0)
         sample_stats["sig_z_score"]=z_score_breakdown[True]
 
-    log_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_log"]).count()['log_ratio'].unstack()
+    log_breakdown=comparisons_table.groupby(["sampleUserGivenId","sig_log"], sort=False).count()['log_ratio'].unstack()
     if True in log_breakdown:
         sample_stats["sig_log_ratio"]=log_breakdown[True]
     else:
