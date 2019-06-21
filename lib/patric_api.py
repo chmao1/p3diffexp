@@ -12,9 +12,9 @@ LOG = sys.stderr
 
 PatricUser = None
 
-def createAPISession(Base_url=None):
-    if Base_url == None:
-        Base_url="https://www.patricbrc.org/api/"
+def createTSVGet(api_url=None):
+    if api_url == None:
+        api_url="https://www.patricbrc.org/api/"
     Session = requests.Session()
     Session.headers.update({ 'accept': "text/tsv" })
     Session.headers.update({ "Content-Type": "application/rqlquery+x-www-form-urlencoded" })
