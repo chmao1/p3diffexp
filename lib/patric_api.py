@@ -9,36 +9,45 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 Debug = False #shared across functions defined here
 LOG = sys.stderr
-Base_url="https://www.patricbrc.org/api/"
-
-Session = requests.Session()
-Session.headers.update({ 'accept': "text/tsv" })
-Session.headers.update({ "Content-Type": "application/rqlquery+x-www-form-urlencoded" })
 
 PatricUser = None
 
-def authenticateByFile(tokenFile=None):
+def createAPISession(Base_url=None):
+    if Base_url == None:
+        Base_url="https://www.patricbrc.org/api/"
+    Session = requests.Session()
+    Session.headers.update({ 'accept': "text/tsv" })
+    Session.headers.update({ "Content-Type": "application/rqlquery+x-www-form-urlencoded" })
+    if not authenticateByEnv(Session):
+        authenticateByFile(None, Session)
+    return Session
+
+
+def authenticateByFile(tokenFile=None, Session=None):
     if not tokenFile:
         tokenFile = os.path.join(os.environ.get('HOME'), ".patric_token")
     if os.path.exists(tokenFile):
         LOG.write("reading auth key from file %s\n"%tokenFile)
         with open(tokenFile) as F:
             tokenString = F.read().rstrip()
-            authenticateByString(tokenString)
+            authenticateByString(tokenString, Session)
 
-def authenticateByEnv():
+def authenticateByEnv(Session):
     if os.environ.has_key("KB_AUTH_TOKEN"):
         LOG.write("reading auth key from environment\n")
-        authenticateByString(os.environ.get('KB_AUTH_TOKEN'))
+        authenticateByString(os.environ.get('KB_AUTH_TOKEN'), Session)
+        return True
+    else:
+        return False
 
-def authenticateByString(tokenString):
+def authenticateByString(tokenString, Session):
     Session.headers.update({ 'Authorization' : tokenString })
     if "Authorization" in Session.headers:
         global PatricUser
         PatricUser = Session.headers["Authorization"].split(r"|")[3].split("=")[1]
         LOG.write("Patric user = %s\n"%PatricUser)
 
-def getGenomeIdsNamesByName(name, limit='10'):
+def getGenomeIdsNamesByName(name, limit='10', Session):
     query = "eq(genome_name,%s)"%name
     query += "&select(genome_id,genome_name)"
     query += "&limit(%s)"%limit
@@ -47,7 +56,7 @@ def getGenomeIdsNamesByName(name, limit='10'):
         LOG.write(ret.url+"\n")
     return(ret.text.replace('"', ''))
 
-def getGenomeGroupIds(genomeGroupName):
+def getGenomeGroupIds(genomeGroupName, Session):
     LOG.write("getGenomeGroupIds(%s), PatricUser=%s\n"%(genomeGroupName, PatricUser))
     genomeGroupSpecifier = PatricUser+"/home/Genome Groups/"+genomeGroupName
     genomeGroupSpecifier = "/"+urllib.quote(genomeGroupSpecifier)
@@ -63,7 +72,7 @@ def getGenomeGroupIds(genomeGroupName):
         LOG.write(ret.url+"\n")
     return(ret.text.replace('"', '').split("\n"))[1:-1]
 
-def getNamesForGenomeIds(genomeIds):
+def getNamesForGenomeIds(genomeIds, Session):
 #    return getDataForGenomes(genomeIdSet, ["genome_id", "genome_name"])
     retval = {}
     for genome in genomeIds:
@@ -96,7 +105,7 @@ def getNamesForGenomeIdsByN(genomeIds, n=5):
     return retval
 
 
-def getGenomeIdByFieldValue(queryField, queryValue):
+def getGenomeIdByFieldValue(queryField, queryValue, Session):
     query = "eq(%s,%s)"%(queryField, queryValue)
     query += "&select(genome_id)"
     req = Session.get(Base_url+"genome/", params=query) 
@@ -110,7 +119,7 @@ def getGenomeIdByFieldValue(queryField, queryValue):
         genomeId = genomeId.replace('\"', '')
     return genomeId
 
-def getDataForGenomes(genomeIdSet, fieldNames):
+def getDataForGenomes(genomeIdSet, fieldNames, Session):
     query = "in(genome_id,(%s))"%",".join(genomeIdSet)
     if fieldNames:
         query += "&select(%s)"%",".join(fieldNames)
@@ -134,7 +143,7 @@ def getDataForGenomes(genomeIdSet, fieldNames):
         retval.append(fields)
     return(retval)
 
-def getProteinFastaForPatricIds(patricIds):
+def getProteinFastaForPatricIds(patricIds, Session):
     query="in(patric_id,("+",".join(map(urllib.quote, patricIds))+"))"
     query += "&limit(%d)"%len(patricIds)
     response=Session.get(Base_url+"genome_feature/", params=query, headers={'Accept': 'application/protein+fasta'})
@@ -155,7 +164,7 @@ def getProteinFastaForPatricIds(patricIds):
         idsFixedFasta += line+"\n"
     return idsFixedFasta
     
-def getDnaFastaForPatricIds(patricIds):
+def getDnaFastaForPatricIds(patricIds, Session):
     query="in(patric_id,("+",".join(map(urllib.quote, patricIds))+"))"
     query += "&limit(%d)"%len(patricIds)
     response=Session.get(Base_url+"genome_feature/", params=query, headers={'Accept': 'application/dna+fasta'})
@@ -176,7 +185,7 @@ def getDnaFastaForPatricIds(patricIds):
         idsFixedFasta += line+"\n"
     return idsFixedFasta
     
-def getProteinsFastaForGenomeId(genomeId):
+def getProteinsFastaForGenomeId(genomeId, Session):
     query="in(genome_id,("+genomeId+"))"
     query += "&limit(25000)"
     response=Session.get(Base_url+"genome_feature/", params=query, headers={'Accept': 'application/protein+fasta'})
@@ -197,7 +206,7 @@ def getProteinsFastaForGenomeId(genomeId):
         idsFixedFasta += line
     return idsFixedFasta
 
-def getProductsForPgfams(pgfams):
+def getProductsForPgfams(pgfams, Session):
     retval = {}
     for pgfam in pgfams:
         retval[pgfam] = ""
@@ -216,7 +225,7 @@ def getProductsForPgfams(pgfams):
             retval[pgfam] = product
     return retval
 
-def getProductsForPgfamsByN(pgfams, n=5):
+def getProductsForPgfamsByN(pgfams, n=5, Session):
     """ For some reason, grabbing them in bulk misses some, so grab N at a time.
     """
     retval = {}
@@ -228,7 +237,7 @@ def getProductsForPgfamsByN(pgfams, n=5):
         i += n
     return retval
 
-def getPatricGenesPgfamsForGenomeSet(genomeIdSet):
+def getPatricGenesPgfamsForGenomeSet(genomeIdSet, Session):
     if Debug:
         LOG.write("getPatricGenesPgfamsForGenomeSet() called for %d genomes\n"%len(genomeIdSet))
         LOG.write("    Session headers=\n"+str(Session.headers)+"\n")
