@@ -47,7 +47,7 @@ def authenticateByString(tokenString, Session):
         PatricUser = Session.headers["Authorization"].split(r"|")[3].split("=")[1]
         LOG.write("Patric user = %s\n"%PatricUser)
 
-def getGenomeIdsNamesByName(name, limit='10', Session):
+def getGenomeIdsNamesByName(name, limit='10', Session=None):
     query = "eq(genome_name,%s)"%name
     query += "&select(genome_id,genome_name)"
     query += "&limit(%s)"%limit
@@ -225,7 +225,7 @@ def getProductsForPgfams(pgfams, Session):
             retval[pgfam] = product
     return retval
 
-def getProductsForPgfamsByN(pgfams, n=5, Session):
+def getProductsForPgfamsByN(pgfams, n=5, Session=None):
     """ For some reason, grabbing them in bulk misses some, so grab N at a time.
     """
     retval = {}
