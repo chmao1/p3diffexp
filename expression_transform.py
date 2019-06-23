@@ -11,6 +11,7 @@ import uuid
 import csv
 from scipy import stats
 from itertools import islice
+from lib import patric_api
 
 #requires 2.7.9 or greater to deal with https comodo intermediate certs
 if sys.version_info < (2, 7):
@@ -360,6 +361,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     #print "switch THE HEADER BACK!"
     #headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
     req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
+    patric_api.authenticateByEnv(req)
     prepared = req.prepare()
     #pretty_print_POST(prepared)
     s = requests.Session()
