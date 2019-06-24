@@ -92,6 +92,9 @@ def gene_matrix_to_list(cur_table):
 
 def list_to_mapping_table(cur_table):
     genes=set(cur_table['exp_locus_tag'])
+    if len(genes) == 0:
+       sys.stderr.write("No genes in differential expression gmx file\n")
+       sys.exit(2) 
     result=pd.DataFrame(index=list(genes))
     result['exp_locus_tag']=result.index
     return result
@@ -354,7 +357,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
         current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
     if "genome_id" in form_data and form_data["genome_id"]:
         current_query["q"]+=" AND genome_id:"+form_data["genome_id"]
-    current_query["fl"]="feature_id,"+",".join(source_types)+","+",".join(int_types)
+    current_query["fl"]="feature_id,"+",".join(source_types+int_types)
     current_query["rows"]="20000"
     current_query["wt"]="json"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
@@ -458,6 +461,7 @@ def main():
     comparisons_table.ix[comparisons_table["log_ratio"] > 1000000, 'log_ratio']=1000000
     comparisons_table.ix[comparisons_table["log_ratio"] < -1000000, 'log_ratio']=-1000000
     comparisons_table=comparisons_table.dropna()
+    comparisons_table=comparisons_table[comparisons_table.exp_locus_tag != "-"]
 
     #map gene ids
     mapping_table=list_to_mapping_table(comparisons_table)
