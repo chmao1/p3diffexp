@@ -31,6 +31,9 @@ def authenticateByFile(tokenFile=None, Session=None):
         with open(tokenFile) as F:
             tokenString = F.read().rstrip()
             authenticateByString(tokenString, Session)
+        return True
+    return False
+
 
 def authenticateByEnv(Session):
     if os.environ.has_key("KB_AUTH_TOKEN"):
@@ -38,7 +41,7 @@ def authenticateByEnv(Session):
         authenticateByString(os.environ.get('KB_AUTH_TOKEN'), Session)
         return True
     else:
-        return False
+        return authenticateByFile(None, Session)
 
 def authenticateByString(tokenString, Session):
     Session.headers.update({ 'Authorization' : tokenString })
