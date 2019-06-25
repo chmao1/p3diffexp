@@ -11,7 +11,10 @@ import uuid
 import csv
 from scipy import stats
 from itertools import islice
-from lib import patric_api
+try:
+    from lib import diffexp_api
+except ImportError:
+    import diffexp_api
 
 #requires 2.7.9 or greater to deal with https comodo intermediate certs
 if sys.version_info < (2, 7):
