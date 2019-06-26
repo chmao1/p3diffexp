@@ -8,7 +8,7 @@ optional arguments:
   --sfile SFILE      server setup JSON file
   --sstring SSTRING  server setup JSON string
 
-
+#To run locally likely need __init__.py in the lib folder. Currently missing to avoid conflicts on server.
 
 #Input
 #1. metadata in json with the following:

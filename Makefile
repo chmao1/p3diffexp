@@ -16,7 +16,7 @@ deploy-all: deploy-client deploy-service
 #
 # Ugh. Calling code wants name with .py.
 #
-deploy-client: deploy-scripts 
+deploy-client: deploy-scripts deploy-libs 
 	ln -s -f expression_transform $(TARGET)/bin/expression_transform.py
 
 deploy-service:
