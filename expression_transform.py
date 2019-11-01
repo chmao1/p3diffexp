@@ -11,6 +11,10 @@ import uuid
 import csv
 from scipy import stats
 from itertools import islice
+try:
+    from lib import diffexp_api
+except ImportError:
+    import diffexp_api
 
 #requires 2.7.9 or greater to deal with https comodo intermediate certs
 if sys.version_info < (2, 7):
@@ -91,6 +95,9 @@ def gene_matrix_to_list(cur_table):
 
 def list_to_mapping_table(cur_table):
     genes=set(cur_table['exp_locus_tag'])
+    if len(genes) == 0:
+       sys.stderr.write("No genes in differential expression gmx file\n")
+       sys.exit(2) 
     result=pd.DataFrame(index=list(genes))
     result['exp_locus_tag']=result.index
     return result
@@ -353,13 +360,14 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
         current_query["q"]+="("+" OR ".join(map_queries)+") AND annotation:PATRIC"
     if "genome_id" in form_data and form_data["genome_id"]:
         current_query["q"]+=" AND genome_id:"+form_data["genome_id"]
-    current_query["fl"]="feature_id,"+",".join(source_types)+","+",".join(int_types)
+    current_query["fl"]="feature_id,"+",".join(source_types+int_types)
     current_query["rows"]="20000"
     current_query["wt"]="json"
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
     #print "switch THE HEADER BACK!"
     #headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
     req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
+    diffexp_api.authenticateByEnv(req)
     prepared = req.prepare()
     #pretty_print_POST(prepared)
     s = requests.Session()
@@ -456,6 +464,7 @@ def main():
     comparisons_table.ix[comparisons_table["log_ratio"] > 1000000, 'log_ratio']=1000000
     comparisons_table.ix[comparisons_table["log_ratio"] < -1000000, 'log_ratio']=-1000000
     comparisons_table=comparisons_table.dropna()
+    comparisons_table=comparisons_table[comparisons_table.exp_locus_tag != "-"]
 
     #map gene ids
     mapping_table=list_to_mapping_table(comparisons_table)
