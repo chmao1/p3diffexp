@@ -373,7 +373,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     s = requests.Session()
     response=s.send(prepared)
     if not response.ok:
-        sys.stderr.write("Mapping API not responding. Please try again later.\n")
+        sys.stderr.write("Error code %s invoking data api: %s\nquery: %s\n" % (response.status_code, response.text, current_query))
         sys.exit(2)
     return response
 
