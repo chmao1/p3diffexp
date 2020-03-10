@@ -381,12 +381,17 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
-def map_gene_ids(cur_table, form_data, server_setup):
+def map_gene_ids(cur_table, form_data, server_setup, host=False):
     cur_table["feature_id"]=np.nan
     chunk_size=1000
-    for i in chunker(cur_table['exp_locus_tag'], chunk_size):
-        mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
-        place_ids(mapping_results, cur_table, form_data)
+    if host:
+        for source_id in cur_table["exp_locus_tag"]:
+            cur_table["feature_id"][source_id]=source_id
+    else:
+        for i in chunker(cur_table['exp_locus_tag'], chunk_size):
+	    mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
+	    place_ids(mapping_results, cur_table, form_data)
+          
 
 
 def main():
@@ -403,6 +408,7 @@ def main():
     parser.add_argument('--xfile', help='the source Expression comparisons file', required=True)
     parser.add_argument('--mfile', help='the metadata template if it exists', required=False)
     parser.add_argument('--output_path', help='location for output', required=True)
+    parser.add_argument('--host', help='host genome, prevent id mapping', action='store_true', default=False, required=False)
     userinfo = parser.add_mutually_exclusive_group(required=True)
     userinfo.add_argument('--ufile', help='json file from user input')
     userinfo.add_argument('--ustring', help='json string from user input')
@@ -468,7 +474,7 @@ def main():
 
     #map gene ids
     mapping_table=list_to_mapping_table(comparisons_table)
-    map_gene_ids(mapping_table, form_data, server_setup)
+    map_gene_ids(mapping_table, form_data, server_setup, map_args.host)
     comparisons_table=comparisons_table.merge(mapping_table, how='left', on='exp_locus_tag')
 
     #create json files to represent experiment
