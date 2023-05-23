@@ -104,7 +104,6 @@ def list_to_mapping_table(cur_table):
 
 #deal with weird naming of columns.
 def fix_headers(cur_table, parameter_type, die):
-    print('in fix header')
     def fix_name(x, all_columns): 
         fixed_name=' '.join(x.split()).strip().lower().replace(" ","_")
         #patrics downloadable template is not consistent with its help info
@@ -187,8 +186,6 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
             next_up="xls"
             cur_table=pd.read_csv(target_file, header=0)
         elif target_format == 'xls' or target_format == 'xlsx':
-            print (sys.version)
-            #cur_table=pd.io.excel.read_excel(target_file, 0, index_col=None)
             cur_table=pd.read_excel(target_file, 0, index_col=None)
         else:
             sys.stderr.write("unrecognized format "+target_format+" for "+target_setup+"\n")
