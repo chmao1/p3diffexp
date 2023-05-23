@@ -18,7 +18,7 @@ except ImportError:
 
 #requires 2.7.9 or greater to deal with https comodo intermediate certs
 if sys.version_info < (2, 7):
-        raise "must use python 2.7 or greater"
+    raise "must use python 2.7 or greater"
 
 #stamp out annoying warnings that are beyond control
 import warnings
@@ -104,6 +104,7 @@ def list_to_mapping_table(cur_table):
 
 #deal with weird naming of columns.
 def fix_headers(cur_table, parameter_type, die):
+    print('in fix header')
     def fix_name(x, all_columns): 
         fixed_name=' '.join(x.split()).strip().lower().replace(" ","_")
         #patrics downloadable template is not consistent with its help info
@@ -120,7 +121,7 @@ def fix_headers(cur_table, parameter_type, die):
     if parameter_type=="xfile":
         target_setup= "gene_list" if all([(fix_name(x,all_columns) in list_columns) for x in cur_table.columns]) else "gene_matrix"
     else:
-	target_setup="template"
+        target_setup="template"
     limit_columns=True
     if target_setup == 'gene_matrix':
         check_columns=matrix_columns
@@ -134,14 +135,16 @@ def fix_headers(cur_table, parameter_type, die):
         rename={'comparison_id':'sampleUserGivenId', 'title':'expname', 'gene_modification':'mutant', 'experiment_condition':'condition', 'time_point':'timepoint'}
     else:
         sys.stderr.write("unrecognized setup "+target_setup+"\n")
-        if die: assert False
+        if die: 
+            assert False
     cur_table.columns=[fix_name(x,all_columns) if fix_name(x,all_columns) in check_columns else x for x in cur_table.columns]
     columns_ok = True
     for i in check_columns:
         columns_ok=columns_ok and i in cur_table.columns
     if not columns_ok:
-            sys.stderr.write("Missing appropriate column names in "+target_setup+"\n")
-            if die: assert False
+        sys.stderr.write("Missing appropriate column names in "+target_setup+"\n")
+        if die: 
+            assert False
     if limit_columns:
         cur_table=cur_table[check_columns]
     if rename:
@@ -155,22 +158,25 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
     target_setup=None
     if not os.path.exists(target_file):
         sys.stderr.write("can't find target file "+target_file+"\n")
-        if die: sys.exit(2)
+        if die: 
+            sys.exit(2)
     if target_format=="start":
         starting=True
         fileName, fileExtension = os.path.splitext(target_file)
         target_format=fileExtension.replace('.','').lower()
     if starting and not target_format in set(["csv","tsv","xls","xlsx"]):
-	temp_handle=open(target_file, 'rb')
-	target_sep=csv.Sniffer().sniff("\n".join(list(islice(temp_handle,10))))
+        temp_handle=open(target_file, 'rb')
+        target_sep=csv.Sniffer().sniff("\n".join(list(islice(temp_handle,10))))
         temp_handle.close()
-	if target_sep.delimiter=="\t":
-		target_format="tsv"
-                sys.stdout.write("guessing "+target_format+" format\n")
-	elif target_sep.delimiter==",":
-		target_format="csv"
-                sys.stdout.write("guessing "+target_format+" format\n")
-		
+        if target_sep.delimiter=="\t":
+            target_format="tsv"
+            sys.stdout.write("guessing "+target_format+" format\n")
+        elif target_sep.delimiter==",":
+            target_format="csv"
+            sys.stdout.write("guessing "+target_format+" format\n")
+    #else:
+    #    sys.stdout.write("guessing "+next_up+" format\n")
+    #    return process_table(target_file, param_type, die, next_up, tries)
     cur_table=None
     next_up="tsv"
     try:
@@ -181,7 +187,9 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
             next_up="xls"
             cur_table=pd.read_csv(target_file, header=0)
         elif target_format == 'xls' or target_format == 'xlsx':
-            cur_table=pd.io.excel.read_excel(target_file, 0, index_col=None)
+            print (sys.version)
+            #cur_table=pd.io.excel.read_excel(target_file, 0, index_col=None)
+            cur_table=pd.read_excel(target_file, 0, index_col=None)
         else:
             sys.stderr.write("unrecognized format "+target_format+" for "+target_setup+"\n")
             if die: sys.exit(2)
@@ -189,14 +197,12 @@ def process_table(target_file, param_type, die, target_format="start", tries=0):
         #assume the first column is "gene_id" for the comparison table and rename it as "gene_id" to handle user misspelled column name for gene_id                                                                                         
         if param_type=="xfile":
             cur_table=cur_table.rename(columns={cur_table.columns[0]:'gene_id'})            
-    	target_setup, cur_table=fix_headers(cur_table, param_type, die)
-    except: 
+        target_setup, cur_table=fix_headers(cur_table, param_type, die)
+    except Exception as e: 
         sys.stdout.write("failed at reading "+target_format+" format\n")
         if tries > 5:
             raise
-	else:
-            sys.stdout.write("guessing "+next_up+" format\n")
-            return process_table(target_file, param_type, die, next_up, tries)
+        sys.stdout.write("{}\n".format(e))
     return (target_setup, cur_table)
 
 #{source_id_type:"refseq_locus_tag || alt_locus_tag || feature_id", 
@@ -257,6 +263,7 @@ def create_comparison_files(output_path, comparisons_table, mfile, form_data, ex
     sample_stats["sig_log_ratio"]=sample_stats["sig_log_ratio"].fillna(0).astype('int64')
     sample_stats["sig_z_score"]=sample_stats["sig_z_score"].fillna(0).astype('int64')
     #set pid's for expression.json
+    sample_stats = sample_stats.reset_index(drop=True)
     comparisons_table=comparisons_table.merge(sample_stats[["pid","sampleUserGivenId"]], how="left", on="sampleUserGivenId")
     #pull in metadata spreadsheet if provided
     if mfile and mfile.strip():
@@ -379,7 +386,7 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
 
 
 def chunker(seq, size):
-    return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 def map_gene_ids(cur_table, form_data, server_setup, host=False):
     cur_table["feature_id"]=np.nan
@@ -389,8 +396,8 @@ def map_gene_ids(cur_table, form_data, server_setup, host=False):
             cur_table["feature_id"][source_id]=source_id
     else:
         for i in chunker(cur_table['exp_locus_tag'], chunk_size):
-	    mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
-	    place_ids(mapping_results, cur_table, form_data)
+            mapping_results=make_map_query(i, form_data, server_setup, chunk_size)
+            place_ids(mapping_results, cur_table, form_data)
           
 
 
@@ -419,6 +426,7 @@ def main():
     if len(sys.argv) ==1:
         parser.print_help()
         sys.exit(2)
+
 
     #get comparison and metadata files
     xfile=map_args.xfile
@@ -467,11 +475,10 @@ def main():
         comparisons_table=gene_matrix_to_list(comparisons_table)
 
     #limit log ratios
-    comparisons_table.ix[comparisons_table["log_ratio"] > 1000000, 'log_ratio']=1000000
-    comparisons_table.ix[comparisons_table["log_ratio"] < -1000000, 'log_ratio']=-1000000
+    comparisons_table.loc[comparisons_table["log_ratio"] > 1000000, 'log_ratio']=1000000
+    comparisons_table.loc[comparisons_table["log_ratio"] < -1000000, 'log_ratio']=-1000000
     comparisons_table=comparisons_table.dropna()
     comparisons_table=comparisons_table[comparisons_table.exp_locus_tag != "-"]
-
     #map gene ids
     mapping_table=list_to_mapping_table(comparisons_table)
     map_gene_ids(mapping_table, form_data, server_setup, map_args.host)
