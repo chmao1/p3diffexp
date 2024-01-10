@@ -370,8 +370,6 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     headers = {"Content-Type": "application/solrquery+x-www-form-urlencoded", "accept":"application/solr+json"}
     #print "switch THE HEADER BACK!"
     #headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'}
-    import pdb
-    pdb.set_trace()
     req = requests.Request('POST', server_setup["data_api"], headers=headers, data=current_query)
     diffexp_api.authenticateByEnv(req)
     prepared = req.prepare()
