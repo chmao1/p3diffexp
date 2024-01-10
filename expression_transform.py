@@ -450,7 +450,7 @@ def main():
         raise
 
     #part of auto-detection of id type add source id types to map from
-    form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id"]#,"gi"]
+    form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id","gene"]#,"gi"]
     form_data["int_types"]=["gi","gene_id"]
 
     #make sure all required info present
