@@ -434,7 +434,7 @@ def main():
     user_parse=None
     server_parse=None
     parse_server = json.loads if 'sstring' in map_args else json.load
-        
+
     try:
         form_data = json.loads(map_args.ustring) if map_args.ustring else json.load(open(map_args.ufile,'r'))
     except:
@@ -448,7 +448,7 @@ def main():
         raise
 
     #part of auto-detection of id type add source id types to map from
-    form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id"]#,"gi"]
+    form_data["source_types"]=["refseq_locus_tag","alt_locus_tag","feature_id","protein_id","patric_id","gene"]#,"gi"]
     form_data["int_types"]=["gi","gene_id"]
 
     #make sure all required info present
