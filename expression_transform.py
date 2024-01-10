@@ -336,8 +336,6 @@ def place_ids(query_results,cur_table,form_data):
     except ValueError:
         sys.stderr.write("mapping failed. either PATRICs API is down or the Gene IDs are unknown\n")
         raise
-    import pdb  
-    pdb.set_trace()
     if count==0:
         sys.stderr.write("mapping failed. either PATRICs API is down or the Gene IDs are unknown\n")
         sys.exit(2)
