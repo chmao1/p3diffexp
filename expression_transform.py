@@ -379,10 +379,6 @@ def make_map_query(id_list, form_data, server_setup, chunk_size):
     if not response.ok:
         sys.stderr.write("Error code %s invoking data api: %s\nquery: %s\n" % (response.status_code, response.text, current_query))
         sys.exit(2)
-    else:
-        import pdb
-        pdb.set_trace()
-        print('here')
     return response
 
 
