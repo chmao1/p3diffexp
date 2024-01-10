@@ -436,7 +436,8 @@ def main():
     user_parse=None
     server_parse=None
     parse_server = json.loads if 'sstring' in map_args else json.load
-        
+    import pdb
+    pdb.set_trace()    
     try:
         form_data = json.loads(map_args.ustring) if map_args.ustring else json.load(open(map_args.ufile,'r'))
     except:
