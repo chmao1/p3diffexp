@@ -19,10 +19,5 @@ This module provides the following application specfication(s):
 ## See also
 
 * [Expression Import Service Quick Reference](https://www.bv-brc.org/docs/quick_references/services/expression_data_import_service.html)
-  * [Expression Import Service](https://www.bv-brc.org/docs/https://bv-brc.org/app/Expression.html)
-  * [Expression Import Service Tutorial](https://www.bv-brc.org/docs//tutorial/expression_import/expression_import.html)
-
-
-
-## References
-
+* [Expression Import Service](https://www.bv-brc.org/docs/https://bv-brc.org/app/Expression.html)
+* [Expression Import Service Tutorial](https://www.bv-brc.org/docs//tutorial/expression_import/expression_import.html)
