@@ -23,6 +23,12 @@ deploy-all: deploy-client deploy-service
 deploy-client: deploy-scripts deploy-libs 
 	ln -s -f expression_transform $(TARGET)/bin/expression_transform.py
 
-deploy-service: deploy-specs
+deploy-service: deploy-libs deploy-scripts deploy-service-scripts deploy-specs
+
+deploy-dir:
+	if [ ! -d $(SERVICE_DIR) ] ; then mkdir $(SERVICE_DIR) ; fi
+	if [ ! -d $(SERVICE_DIR)/bin ] ; then mkdir $(SERVICE_DIR)/bin ; fi
+
+deploy-docs:
 
 include $(TOP_DIR)/tools/Makefile.common.rules
